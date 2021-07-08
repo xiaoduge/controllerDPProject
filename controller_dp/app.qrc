@@ -1,0 +1,10 @@
+<RCC>
+    <qresource prefix="/app">
+        <file>slider.qss</file>
+        <file>musicslider.qss</file>
+        <file>checkbox.qss</file>
+        <file>combox.qss</file>
+        <file>Table.qss</file>
+        <file>tabWidget.qss</file>
+    </qresource>
+</RCC>

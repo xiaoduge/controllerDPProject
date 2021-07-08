@@ -1,0 +1,17 @@
+#
+*.o
+
+#
+controller-build-desktop-Qt_4_8_5__qt4_8_5____
+
+#
+copyController
+.vscode
+
+#
+*.sh~
+*.bak
+
+#
+*.pro.user
+*.pro.user.*

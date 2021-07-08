@@ -1,0 +1,78 @@
+#!/bin/bash
+
+#当前目录
+projectPath=$(pwd)
+
+builtPath="$projectPath/controller-build-desktop-Qt_4_8_5__qt4_8_5____/"
+
+#为了每次编译都能获取编译时间，每次编译都编译exconfig.cpp
+deleteFileName="$projectPath/controller-build-desktop-Qt_4_8_5__qt4_8_5____/exconfig.o"
+
+#检查构建目录是否存在
+check_buildDir()
+{
+	if [ ! -d $builtPath ];
+	then
+		mkdir $builtPath
+		echo "新建构建目录..."
+	else
+		echo "构建目录已经存在"
+	fi
+}
+
+#构建前清理必要文件
+clean_Separate()
+{
+	check_buildDir
+    if [ ! -f $deleteFileName ];
+    then
+        echo "没有需要清理的文件"
+    else
+        rm -f $deleteFileName
+    	echo "删除 $deleteFileName"
+    fi
+}
+
+#构建前清理所有文件
+clean_AllFile()
+{
+	check_buildDir
+    rm -f $builtPath/*
+    echo "构建目录内所有文件均已删除"
+}
+
+#打印命令说明
+printVersionMsg()
+{
+	echo "built on 2019.12.6"
+    echo "此命令用于构建controller项目"
+	echo "--命令后添加参数rebuild则先清理项目再重构项目"
+	echo "--命令后无参数或参数无效则执行一般构建"
+	echo "--"
+}
+
+case "$1" in
+    rebuild)
+        echo "重新构建项目..."
+        clean_AllFile
+        ;;
+	version)
+		printVersionMsg
+		exit 0
+		;;
+    *)
+        echo "构建项目..."
+        clean_Separate
+esac
+
+echo "构建项目：$projectPath/controller"
+
+cd $builtPath
+
+/opt/qt4.8.5/bin/qmake $projectPath/controller/controller.pro -r -spec qws/linux-arm-g++
+
+make
+
+echo "编译完成: $?"
+
+

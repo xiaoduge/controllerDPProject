@@ -213,7 +213,7 @@ typedef struct
 #define MM_DEFALUT_SP30 10.0//        TOC进水水质下限15.0MΩ.cm   
 #define MM_DEFALUT_SP31 1.0//        HP循环(水箱循环)水质下限15.0MΩ.cm   
 #define MM_DEFALUT_SP32 0.0//        HP产水水质下限15.0MΩ.cm   
-#define MM_DEFALUT_SP33 12.0//       bar 
+#define MM_DEFALUT_SP33 8.0//       bar 
 
 
 typedef struct
@@ -296,7 +296,8 @@ typedef enum
 
 typedef enum
 {
-    DISP_WATER_BARREL_TYPE_030L = 0,
+    DISP_WATER_BARREL_TYPE_010L = 0,
+    DISP_WATER_BARREL_TYPE_030L,
     DISP_WATER_BARREL_TYPE_060L,    
     DISP_WATER_BARREL_TYPE_100L,    
     DISP_WATER_BARREL_TYPE_200L,    

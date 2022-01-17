@@ -42,8 +42,15 @@ enum {
     MLOG_BUTT,
 };
 
+#define LOCAL_LOG
+#ifdef LOCAL_LOG  //LocalLog
 #define LOG(level,fmt, args...)   do { VOS_logger(level, __FILE__, __LINE__,fmt,##  args); User_Log_Helper(MLOG_DEBUG, __FILE__, __LINE__,fmt,##  args);\
     } while(0)
+
+#else
+#define LOG(level,fmt, args...)   do { VOS_logger(level, __FILE__, __LINE__,fmt,##  args);\
+    } while(0)
+#endif
 
 #define VOS_LOG(level,fmt, args...)   VOS_logger(level, __FILE__, __LINE__,fmt,##  args)
 

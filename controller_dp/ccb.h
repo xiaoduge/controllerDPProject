@@ -340,6 +340,7 @@ private:
    unsigned int     bit1ROWashPause       : 1;  //系统清洗时，原水箱空，则暂定清洗
    unsigned int     bit1TocAlarmNeedCheck : 1;  //是否开启TOC报警检测
    unsigned int     bit1AlarmWorkPressHigh: 1;  //工作压力高报警
+   unsigned int     bit1AlarmWorkPressLow : 1;  //工作压力低报警
 
    unsigned int     ulRegisterMask;
    unsigned int     ulActiveMask;
@@ -526,6 +527,7 @@ private:
    int CanCcbAfDataHeartBeatRspMsg(MAIN_CANITF_MSG_STRU *pCanItfMsg);
    void checkB1DuringRunState();
    void checkB2ToProcessB2Empty();
+   void checkB2ToProcessB2NeedFill();
    void checkB2ToProcessB2Full();
    void checkB3ToProcessB3Full();
    void checkB3ToProcessB3NeedFill();
@@ -719,6 +721,7 @@ private:
   void work_start_Leak_fail(int iKeyId);
   void work_start_Leak_succ();
   void work_stop_Leak_succ();
+  void smoothI2Data(float newValue);
   int CanCcbAfDataClientRpt4ExeBoard(MAIN_CANITF_MSG_STRU *pCanItfMsg);
   int CanCcbAfDataClientRpt4RFReader(MAIN_CANITF_MSG_STRU *pCanItfMsg);
   DISPHANDLE CcbInnerWorkStartLeakWok();
@@ -749,6 +752,11 @@ signals:
    void dispIndication(unsigned char *pucData,int iLength);
    void iapIndication(IAP_NOTIFY_STRU *pIapNotify);
    void cmresetindication(unsigned int ulMap);
+
+   void startQtwTimer(int);
+
+public slots:
+    void onQtwTimerOut();
    
       // declare as public member to facilitate mutual access
 public:
@@ -898,7 +906,7 @@ public:
   void Ex_DispDecPressure();
   
   int getWaterTankCfgMask();
-  void getInitInstallMask(int iType0Mask,int iType1Mask);
+  void getInitInstallMask(int &iType0Mask,int &iType1Mask);
   uint8_t CcbGetPm2Percent(float fValue);
   void CcbSetPm2RefillThd(uint8_t RefillThd,uint8_t StopThd);
   

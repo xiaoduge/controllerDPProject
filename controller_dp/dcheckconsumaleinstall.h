@@ -17,6 +17,9 @@
 #include "mainwindow.h"
 #include <QMap>
 #include <QSqlDatabase>
+#include <QMutex>
+
+extern QMutex sqlConsumaleMutex; 
 
 class DCheckConsumaleInstall : public QObject
 {

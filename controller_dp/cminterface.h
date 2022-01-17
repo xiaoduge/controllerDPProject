@@ -477,16 +477,11 @@ typedef enum
 
 typedef enum
 {
-     MACHINE_L_Genie = 0,
-     MACHINE_L_UP,
-     MACHINE_L_EDI_LOOP,
-     MACHINE_L_RO_LOOP,
-     MACHINE_Genie,
-     MACHINE_UP,
-     MACHINE_EDI,
-     MACHINE_RO,
-     MACHINE_PURIST,
-     MACHINE_ADAPT,
+     MACHINE_UP = 0,  //NuZar U
+     MACHINE_EDI,     //NuZar E
+     MACHINE_RO,      //NuZar R
+     MACHINE_RO_H,    //NuZar H
+     MACHINE_PURIST,  // NuZar Q
      MACHINE_NUM,
 }MACHINE_TYPE_ENUM;
 
@@ -511,6 +506,7 @@ typedef enum
    PARAM_DO_RO_Ongoing_Pressure,// for display 
    PARAM_DO_RO_REJ,             // for display 
    PARAM_DO_Misc_Flags,
+   PARAM_DO_SubMod_Flags,
    PARAM_DO_WIFI_IP,            // for display 
    PARAM_DO_ETH_IP,             // for display 
    PARAM_DO_MACH_TYPE,
@@ -620,6 +616,8 @@ typedef enum
     DISP_ALARM_PART1_LOWER_TOC_SOURCE_WATER_RESISTENCE,   //TOC水质低
     DISP_ALARM_PART1_LEAK_OR_TANKOVERFLOW,                //漏水保护或溢流
     DISP_ALARM_PART1_HIGH_WORK_PRESSURE,                  //工作压力高
+    DISP_ALARM_PART1_LOWER_WORK_PRESSURE,                 //工作压力低
+    DISP_ALARM_PART1_HIGHER_TOC,                          //TOC高
     DISP_ALARM_PART1_NUM,
 }DISP_ALARM_PART1_ENUM;
 
@@ -672,6 +670,9 @@ typedef enum
     DISP_SM_HP_Electrode,
     DISP_SM_SW_PUMP,
     
+    DISP_SM_FINALFILTER_A,  
+    DISP_SM_FINALFILTER_B, 
+    
     DISP_SM_NUM,
 }DISP_SUB_MODULE_ENUM;
 
@@ -712,7 +713,7 @@ typedef enum
 typedef enum
 {
     DISP_PRE_PACKLIFEDAY = 0,   //纯化柱:  0~999 DAYS    0~9999L 
-    DISP_PRE_PACKLIFEL,     //纯化柱:   0~9999L
+    DISP_PRE_PACKLIFEL,         //纯化柱:   0~9999L
     DISP_AC_PACKLIFEDAY,   //AC PACK:  0~999 DAYS    0~9999L 
     DISP_AC_PACKLIFEL,     //AC PACK:   0~9999L
     DISP_T_PACKLIFEDAY,     //T PACK: 2018.10.12 ADD
@@ -886,6 +887,7 @@ typedef enum
     MACHINE_PARAM_SP31,     // 水箱循环水质下限 用于T Pack耗材更换提醒  
     MACHINE_PARAM_SP32,     // HP 产水水质下限
     MACHINE_PARAM_SP33,     // RO工作压力上限
+    MACHINE_PARAM_SP34,     // TOC上限
     MACHINE_PARAM_SP_NUM,
 
 }MACHINE_PARAM_ENUM;
@@ -971,6 +973,7 @@ typedef struct
     uint8_t  ucAddData;
     uint8_t  ucWaterType;
     uint8_t  ucMainCtlState; // 2020/08/11 add
+    uint8_t  ucTankCap;
 }APP_PACKET_ONLINE_NOTI_CONF_HANDLER_STRU;
 
 
@@ -1029,6 +1032,7 @@ typedef enum
 typedef struct
 {    
      uint8_t ucAction;
+     uint8_t ucHandleType;
 }APP_PACKET_HO_CIR_REQ_STRU; // flow meter
 
 
@@ -1231,7 +1235,7 @@ typedef APP_PACKET_HO_CONFIG_QUERY_RSP_STRU APP_PACKET_HO_CM_DETAIL_QRY_RSP_STRU
 typedef struct
 {
     unsigned short usTemp;
-    float          fWaterQ; /* Water Quality */
+    float fWaterQ; /* Water Quality */
 }APP_ECO_VALUE_STRU;
 
 typedef struct

@@ -5,10 +5,13 @@
 #include <QSqlDatabase>
 #include <QSqlQuery>
 #include <QSqlError>
+#include <QMutexLocker>
 
 extern QString select_sql_Consumable;
 extern QString insert_sql_Consumable;
 extern QString update_sql_Consumable;
+
+QMutex sqlConsumaleMutex;
 
 DCheckConsumaleInstall::DCheckConsumaleInstall(int id, QObject *parent) :
     QObject(parent),
@@ -46,12 +49,6 @@ void DCheckConsumaleInstall::initRfid()
 
     switch(gGlobalParam.iMachineType)
     {
-    case MACHINE_L_Genie:
-    case MACHINE_L_UP:
-    case MACHINE_L_EDI_LOOP:
-    case MACHINE_L_RO_LOOP:
-        m_iRfid[PPACK_CATNO] = APP_RFID_SUB_TYPE_ROPACK_OTHERS;
-        break;
     default:
         m_iRfid[PPACK_CATNO] = APP_RFID_SUB_TYPE_PPACK_CLEANPACK;
         break;
@@ -59,9 +56,6 @@ void DCheckConsumaleInstall::initRfid()
 
     switch(gGlobalParam.iMachineType)
     {
-    case MACHINE_L_EDI_LOOP:
-        m_iRfid[HPACK_CATNO] = APP_RFID_SUB_TYPE_UPACK_HPACK;
-        break;
     default:
         m_iRfid[HPACK_CATNO] = APP_RFID_SUB_TYPE_HPACK_ATPACK;
         break;
@@ -112,7 +106,7 @@ bool DCheckConsumaleInstall::check(int iRfId)
     m_catNo = cn;
     m_lotNo = ln;
 
-    qDebug() << "CATNO " << m_catNo << "LOTNO " << m_lotNo << endl;
+    //qDebug() << "dcj : check " << "m_curRfId " << m_curRfId <<"CATNO " << m_catNo << "LOTNO " << m_lotNo << QString(", %1, %2 ").arg(__FILE__).arg(__LINE__);
 
     parseType();
 
@@ -130,6 +124,31 @@ void DCheckConsumaleInstall::parseType()
             m_iType = m_typeMap.value(i);
             m_category = m_categoryMap.value(i);
 
+            switch(i)
+            {
+            case ACPACK_CATNO:
+            case PPACK_CATNO:
+            case UPACK_CATNO:
+            case HPACK_CATNO:
+            case ATPACK_CATNO:
+            case CLEANPACK_CATNO:
+                if(m_iRfid[i] == m_curRfId)
+                {
+                    retriveCMInfoWithRFID(m_iType);
+                    m_isRfidType = true;
+                }
+                else
+                {
+                    m_isRfidType = false;
+                    qDebug() << "misplaced pack " << m_catNo << QString("target: %1, real: %2").arg(m_iRfid[i]).arg(m_curRfId);
+                }
+                break;
+            default:
+                retriveCMInfoWithRFID(m_iType);
+                m_isRfidType = true;
+                break;
+            }
+#if 0
             if(m_iRfid[i] == m_curRfId)
             {
                 retriveCMInfoWithRFID(m_iType);
@@ -138,14 +157,11 @@ void DCheckConsumaleInstall::parseType()
             else
             {
                 m_isRfidType = false;
+                qDebug() << "misplaced pack " << m_catNo << QString("target: %1, real: %2").arg(m_iRfid[i]).arg(m_curRfId);
             }
+#endif
             break;
         }
-    }
-
-    if (!m_isRfidType)
-    {
-        qDebug() << "misplaced pack " << m_catNo << endl;
     }
 }
 
@@ -369,6 +385,8 @@ bool DCheckConsumaleInstall::comparedWithSql()
 
 void DCheckConsumaleInstall::updateSql()
 {
+    QMutexLocker locker(&sqlConsumaleMutex);
+    
     QString strCurDate = QDate::currentDate().toString("yyyy-MM-dd");
     QSqlQuery query(m_db);
     query.prepare(update_sql_Consumable);
@@ -381,6 +399,7 @@ void DCheckConsumaleInstall::updateSql()
 
     if(ret)
     {
+        qDebug() << "dcj :updateSql " << m_iType << ", " << m_catNo << ", " << m_lotNo << QString(", %1, %2 ").arg(__FILE__).arg(__LINE__);
         if((DISP_P_PACK == m_iType) && (!g_bNewPPack))
         {
             g_bNewPPack = 1;
@@ -391,6 +410,8 @@ void DCheckConsumaleInstall::updateSql()
 
 void DCheckConsumaleInstall::insertSql()
 {
+    QMutexLocker locker(&sqlConsumaleMutex);
+    
     QString strCurDate = QDate::currentDate().toString("yyyy-MM-dd");
     QSqlQuery query(m_db);
     query.prepare(insert_sql_Consumable);
@@ -403,6 +424,7 @@ void DCheckConsumaleInstall::insertSql()
 
     if(ret)
     {
+        qDebug() << "dcj : insertSql " << m_iType << ", " << m_catNo << ", " << m_lotNo;
         if((DISP_P_PACK == m_iType) && (!g_bNewPPack))
         {
             g_bNewPPack = 1;
@@ -441,7 +463,8 @@ void DCheckConsumaleInstall::updateConsumaleMsg()
     {
         return;
     }
-
+    qDebug() << "dcj : " << m_operateID;
+    
     switch(m_operateID)
     {
     case InsertAction:

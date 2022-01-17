@@ -3,7 +3,6 @@
 #include "exconfig.h"
 #include <QSqlDatabase>
 #include <QSqlQuery>
-#include "dloginwarningdialog.h"
 
 DUserInfoChecker::DUserInfoChecker(QObject *parent) :
     QObject(parent)

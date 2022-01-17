@@ -14,16 +14,11 @@ extern "C"
  */
 #define GLOBAL_CFG_INI           "global.ini"
 
-#define MACH_NAME_LGenie         "Super-Genie G"
-#define MACH_NAME_LUP            "Super-Genie U"
-#define MACH_NAME_LEDI_LOOP      "Super-Genie E"
-#define MACH_NAME_LRO_LOOP       "Super-Genie R"
-#define MACH_NAME_Genie          "Genie G"
-#define MACH_NAME_UP             "Genie U"
-#define MACH_NAME_EDI            "Genie E"
-#define MACH_NAME_RO             "Genie R"
-#define MACH_NAME_PURIST         "Genie PURIST"
-#define MACH_NAME_Adapt          "Genie A"
+#define MACH_NAME_UP             "NuZar U"
+#define MACH_NAME_EDI            "NuZar E"
+#define MACH_NAME_RO             "NuZar R"
+#define MACH_NAME_RO_H           "NuZar H"
+#define MACH_NAME_PURIST         "NuZar Q"
 //end
 
 typedef enum

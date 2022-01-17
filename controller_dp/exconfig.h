@@ -127,8 +127,6 @@ struct ServiceLogPrint
 extern DLoginState gUserLoginState; //ex
 extern AdditionalGlobalCfg gAdditionalCfgParam;
 
-extern unsigned int gScreenSleepTimer;
-extern bool gScreenSleeping;
 extern unsigned int gAutoLogoutTimer;
 
 extern const QString gAppVersion;

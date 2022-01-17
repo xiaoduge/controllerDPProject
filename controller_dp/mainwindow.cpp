@@ -11,70 +11,39 @@
 #include <QTime>
 #include <QMouseEvent>
 
-#include "LoginDlg.h"
 #include "rpc.h"
 #include "sapp.h"
 #include "Interface.h"
 #include "MyParams.h"
-#include "LockupDlg.h"
 #include "memory.h"
-#include "navigatorbar.h"
-#include "mainpage.h"
-#include "menupage.h"
-#include "setpage.h"
-#include "servicepage.h"
-#include "SterilizePage.h"
+
 #include <QMovie>
 #include <typeinfo>
 #include <QTcpSocket>
 #include <QFileSystemWatcher>
 #include <QDir>
-#include <QMessageBox>
 
-#include "setdevicepage.h"
-#include "systestpage.h"
 #include "buzzer_ctl.h"
-
-#include "systemmonitorpage.h"
-#include "ConsumableinsPage.h"
-#include "alarmdisplaypage.h"
 #include "cminterface.h"
-#include "ToastDlg.h"
 
 #include "exconfig.h"
 #include "dloginstate.h"
-#include "dinitlanguagepage.h"
-#include "dinitnetworkpage.h"
-#include "dinitconsumableinspage.h"
-#include "dinittimepage.h"
-#include "dinittankcfgpage.h"
-#include "dinitsyscfgpage.h"
-#include "dscreensleeppage.h"
-#include "dfactorytestpage.h"
 #include "dcheckconsumaleinstall.h"
-#include "dconsumableinstalldialog.h"
-#include "dflowchartpage.h"
+
 #include "DNetworkConfig.h"
 #include "dhttpworker.h"
-#include "dwificonfigdialog.h"
-#include "dwificonfigwidget.h"
-#include "dhintdialog.h"
-#include "dwaterqualitypage.h"
-#include "drunwarningdialog.h"
 #include "duserinfochecker.h"
-#include "dloginwarningdialog.h"
 #include "printer.h"
-#include "dleakalarmdlg.h" 
-#include "dwarningdlg.h"
 
 #include "json/json.h"
 #include "web_server.h"
 #include "config.h"
 #include "log.h"
 #include <sys/reboot.h>
+#include "ctrlapplication.h"
+#include "crecordparams.h"
 
 using namespace std;
-
 
 
 //#include "dscreensleepthread.h"
@@ -186,7 +155,6 @@ I5  UP产水电阻率
 
 MainWindow *gpMainWnd;
 
-QPixmap    *gpGlobalPixmaps[GLOBAL_BMP_NUM];
 
 QString gGlobalPixelmapName[GLOBAL_BMP_NUM] = 
 {
@@ -227,16 +195,12 @@ QString gGlobalPixelmapName[GLOBAL_BMP_NUM] =
 
 DISP_GLOBAL_PARAM_STRU gGlobalParam;
 
-unsigned int gMachineFlow;
-
 DLoginState gUserLoginState;
 
 AdditionalGlobalCfg gAdditionalCfgParam;
 EX_CCB  gEx_Ccb;
 SENSOR_RANGE gSensorRange;
 
-unsigned int gScreenSleepTimer;
-bool gScreenSleeping;
 unsigned int gAutoLogoutTimer;
 
 unsigned int ex_gulSecond = 0;
@@ -264,16 +228,11 @@ CConfig                gCConfig;
 
 MACHINE_TYPE_STRU gaMachineType[MACHINE_NUM] =
 {
-    {MACH_NAME_LGenie,   MACHINE_MODEL_MID ,MACHINE_FUNCTION_ALL,DEFAULT_MODULES_L_Genie ,450},
-    {MACH_NAME_LUP,      MACHINE_MODEL_MID ,MACHINE_FUNCTION_ALL,DEFAULT_MODULES_L_UP    ,450},
-    {MACH_NAME_LEDI_LOOP,MACHINE_MODEL_MID ,MACHINE_FUNCTION_EDI,DEFAULT_MODULES_EDI_LOOP,450},
-    {MACH_NAME_LRO_LOOP, MACHINE_MODEL_MID ,MACHINE_FUNCTION_EDI,DEFAULT_MODULES_RO_LOOP ,450},
-    {MACH_NAME_Genie,    MACHINE_MODEL_DESK,MACHINE_FUNCTION_ALL,DEFAULT_MODULES_Genie   ,7055},
     {MACH_NAME_UP,       MACHINE_MODEL_DESK,MACHINE_FUNCTION_ALL,DEFAULT_MODULES_UP      ,7055},
     {MACH_NAME_EDI,      MACHINE_MODEL_DESK,MACHINE_FUNCTION_EDI,DEFAULT_MODULES_EDI     ,7055},
     {MACH_NAME_RO,       MACHINE_MODEL_DESK,MACHINE_FUNCTION_EDI,DEFAULT_MODULES_RO      ,7055},
-    {MACH_NAME_PURIST,   MACHINE_MODEL_DESK,MACHINE_FUNCTION_UP ,DEFAULT_MODULES_PURIST  ,7055},
-    {MACH_NAME_Adapt,    MACHINE_MODEL_DESK,MACHINE_FUNCTION_ALL,DEFAULT_MODULES_ADAPT   ,7055}
+    {MACH_NAME_RO_H,     MACHINE_MODEL_DESK,MACHINE_FUNCTION_EDI,DEFAULT_MODULES_RO      ,7055},
+    {MACH_NAME_PURIST,   MACHINE_MODEL_DESK,MACHINE_FUNCTION_UP ,DEFAULT_MODULES_PURIST  ,7055}
 };
 
 QString gastrTmCfgName[] = 
@@ -1099,7 +1058,10 @@ void CConfig::doQueryWifi(std::string &json)
                 QStringList strParts = Lines[iLine].split(QRegExp("\\s+"));
                 if (strParts.size() == SSID_LINE_SEGMENT)
                 {
-                    ssidList << strParts[SSID_LINE_SEGMENT - 1];
+                    if (!strParts[SSID_LINE_SEGMENT - 1].startsWith("\\x00\\x00"))
+                    {
+                        ssidList << strParts[SSID_LINE_SEGMENT - 1];
+                    }
                 }
             }
         }
@@ -1898,6 +1860,7 @@ bool CConfig::doCmReset(std::string &req,std::string &rsp)
 {
     Json::Value root;
     Json::Reader reader;
+    int iResult = 0;
     
     if (!reader.parse(req,root))
     {
@@ -1945,14 +1908,15 @@ bool CConfig::doCmReset(std::string &req,std::string &rsp)
         MainResetCmInfo(iId);
         break;
     default:
-        return false;
+        iResult = -1;
+        break;
     }
 
     // construct response json
     {
         
         Json::Value jRsp;
-        jRsp["result"] = Json::Value(0);
+        jRsp["result"] = Json::Value(iResult);
         
         Json::StyledWriter sw;
         rsp = sw.write(jRsp);
@@ -2294,7 +2258,7 @@ bool webserver_query(string& uri,string& query,string &json)
 
    for (iLoop = 0; iLoop < querys.size(); iLoop++)
    {
-       QString strValue = querys[0];
+       QString strValue = querys[iLoop];
        
        QStringList pair = strValue.split("=");
 
@@ -2543,9 +2507,7 @@ void MainRetriveMachineInfo(int iMachineType) //ex_dcj
     QString strV;
 
     strV = "/ExMachineMsg/MachineFlow/";
-    gAdditionalCfgParam.machineInfo.iMachineFlow = config->value(strV, 5).toInt();
-
-    gMachineFlow = gAdditionalCfgParam.machineInfo.iMachineFlow;
+    gAdditionalCfgParam.machineInfo.iMachineFlow = config->value(strV, 24).toInt();
 
     if (config)
     {
@@ -2682,7 +2644,7 @@ void MainRetriveMachineType(int &iMachineType)
 
     if (cfgGlobal)
     {
-        iMachineType = cfgGlobal->value("/global/machtype", MACHINE_Genie).toInt(); //MACHINE_L_Genie
+        iMachineType = cfgGlobal->value("/global/machtype", MACHINE_UP).toInt(); 
         /* More come here late implement*/
         delete cfgGlobal;
     }
@@ -2691,34 +2653,13 @@ void MainRetriveMachineType(int &iMachineType)
 void MainRetriveMachineParam(int iMachineType,DISP_MACHINE_PARAM_STRU  &Param)
 {
     /* retrive parameter from configuration */
-    int iLoop;
-
-    float workPressure = 8.0;
-    float defaultRejLimit = 92.0;
-    float defaultROLimit = 50.0;
-    switch(iMachineType)
-    {
-    case MACHINE_L_Genie:
-    case MACHINE_L_UP:
-    case MACHINE_L_EDI_LOOP:
-    case MACHINE_L_RO_LOOP:
-        workPressure = 12.0;
-        break;
-    case MACHINE_ADAPT:
-        defaultRejLimit = 95.0;
-        defaultROLimit = 40.0;
-        break;
-    default:
-        break;
-    }
-
-    float defautlValue[] = {MM_DEFALUT_SP1, defaultRejLimit, defaultROLimit, MM_DEFALUT_SP4,MM_DEFALUT_SP5,
+    float defautlValue[] = {MM_DEFALUT_SP1, MM_DEFALUT_SP2, MM_DEFALUT_SP3, MM_DEFALUT_SP4,MM_DEFALUT_SP5,
                             MM_DEFALUT_SP6,MM_DEFALUT_SP7,MM_DEFALUT_SP8,MM_DEFALUT_SP9,MM_DEFALUT_SP10,
                             MM_DEFALUT_SP11,MM_DEFALUT_SP12,MM_DEFALUT_SP13,MM_DEFALUT_SP14,MM_DEFALUT_SP15,
                             MM_DEFALUT_SP16,MM_DEFALUT_SP17,MM_DEFALUT_SP18,MM_DEFALUT_SP19,MM_DEFALUT_SP20,
                             MM_DEFALUT_SP21,MM_DEFALUT_SP22,MM_DEFALUT_SP23,MM_DEFALUT_SP24,MM_DEFALUT_SP25,
                             MM_DEFALUT_SP26,MM_DEFALUT_SP27,MM_DEFALUT_SP28,MM_DEFALUT_SP29,MM_DEFALUT_SP30,
-                            MM_DEFALUT_SP31,MM_DEFALUT_SP32, workPressure};
+                            MM_DEFALUT_SP31,MM_DEFALUT_SP32, MM_DEFALUT_SP33};
 
     QString strCfgName = gaMachineType[iMachineType].strName;
 
@@ -2726,13 +2667,11 @@ void MainRetriveMachineParam(int iMachineType,DISP_MACHINE_PARAM_STRU  &Param)
     
     QSettings *config = new QSettings(strCfgName, QSettings::IniFormat);
 
-    for(iLoop = 0; iLoop < MACHINE_PARAM_SP_NUM ; iLoop++)
+    for(int iLoop = 0; iLoop < MACHINE_PARAM_SP_NUM ; iLoop++)
     {
         QString strV = "/SP/";
 
         strV += QString::number(iLoop);
-
-        //QString Result = config->value(strV).toString();
 
         Param.SP[iLoop] = config->value(strV,defautlValue[iLoop]).toFloat();
 
@@ -2826,18 +2765,16 @@ void MainRetriveSubModuleSetting(int iMachineType,DISP_SUB_MODULE_SETTING_STRU  
         Param.ulFlags  = iValue;
     }
 
+    Param.ulFlags &= ~(1 << DISP_SM_HaveTOC); //全部不配置TOC
+    
     switch(iMachineType)
     {
-    case MACHINE_Genie:
     case MACHINE_EDI:
     case MACHINE_UP:
     case MACHINE_RO:
+    case MACHINE_RO_H:
     case MACHINE_PURIST:
         Param.ulFlags &= ~(1 << DISP_SM_HaveB3); //
-        break;
-    case MACHINE_ADAPT:
-        Param.ulFlags &= ~(1 << DISP_SM_HaveB3); //
-        Param.ulFlags &= ~(1 << DISP_SM_HaveB2);
         break;
     }
 
@@ -2903,12 +2840,6 @@ void MainRetriveCMParam(int iMachineType,DISP_CONSUME_MATERIAL_STRU  &Param)
     {
         switch(iMachineType)
         {
-        case MACHINE_L_Genie:
-        case MACHINE_L_EDI_LOOP:
-        case MACHINE_L_RO_LOOP:
-        case MACHINE_L_UP:
-            Param.aulCms[DISP_P_PACKLIFEL] = 0; 
-            break;
         default:
             Param.aulCms[DISP_P_PACKLIFEL] = 30000; 
             break;
@@ -2921,21 +2852,7 @@ void MainRetriveCMParam(int iMachineType,DISP_CONSUME_MATERIAL_STRU  &Param)
     }
     if (INVALID_CONFIG_VALUE == Param.aulCms[DISP_U_PACKLIFEL])
     {
-        switch(iMachineType)
-        {
-        case MACHINE_L_Genie:
-        case MACHINE_L_EDI_LOOP:
-        case MACHINE_L_RO_LOOP:
-        case MACHINE_L_UP:
-            Param.aulCms[DISP_U_PACKLIFEL] = 6000; 
-            break;
-        case MACHINE_ADAPT:
-            Param.aulCms[DISP_U_PACKLIFEL] = 1500; 
-            break;
-        default:
-            Param.aulCms[DISP_U_PACKLIFEL] = 3000; 
-            break;
-        }
+        Param.aulCms[DISP_U_PACKLIFEL] = 3000; 
     }
 
     if (INVALID_CONFIG_VALUE == Param.aulCms[DISP_AT_PACKLIFEDAY])
@@ -2955,12 +2872,6 @@ void MainRetriveCMParam(int iMachineType,DISP_CONSUME_MATERIAL_STRU  &Param)
     {
         switch(iMachineType)
         {
-        case MACHINE_L_Genie:
-        case MACHINE_L_EDI_LOOP:
-        case MACHINE_L_RO_LOOP:
-        case MACHINE_L_UP:
-            Param.aulCms[DISP_H_PACKLIFEL] = 6000; 
-            break;
         default:
             Param.aulCms[DISP_H_PACKLIFEL] = 3000; 
             break;
@@ -3291,7 +3202,22 @@ void MainRetriveMiscParam(int iMachineType,DISP_MISC_SETTING_STRU  &Param)
 
         strV = "/MISC/MISCFLAG";
         iValue = config->value(strV,1).toInt();
-        Param.ulMisFlags = iValue;        
+        Param.ulMisFlags = iValue;      
+
+        switch(gGlobalParam.iMachineType)
+        {
+        case MACHINE_RO_H:
+            Param.ulMisFlags |= (1 << DISP_SM_HP_Water_Cir);
+            break;
+        case MACHINE_EDI:
+        case MACHINE_UP:
+        case MACHINE_RO:
+        case MACHINE_PURIST:
+            Param.ulMisFlags &= ~(1 << DISP_SM_HP_Water_Cir);
+            break;
+        default:
+            break;
+        }
 
         
         strV = "/MISC/TANKUVONTIME";
@@ -4179,42 +4105,11 @@ void MainSaveCalibrateParam(int iMachineType, QMap<int, DISP_PARAM_CALI_ITEM_STR
 
     switch(iMachineType)
     {
-    case MACHINE_L_Genie:
-    case MACHINE_L_UP:
-    case MACHINE_L_EDI_LOOP:
-    case MACHINE_L_RO_LOOP:
-        switch(gAdditionalCfgParam.machineInfo.iMachineFlow)
-        {
-        case MachineFlow_125:
-        case MachineFlow_150:
-        case MachineFlow_250:
-        case MachineFlow_300:
-            fmParam.aulCfg[DISP_FM_FM1] = quarterInchFM / gGlobalParam.Caliparam.pc[DISP_PC_COFF_S1].fk;
-            fmParam.aulCfg[DISP_FM_FM2]= halfInchFM / gGlobalParam.Caliparam.pc[DISP_PC_COFF_S2].fk;
-            fmParam.aulCfg[DISP_FM_FM3] = halfInchFM / gGlobalParam.Caliparam.pc[DISP_PC_COFF_S3].fk;
-            fmParam.aulCfg[DISP_FM_FM4] = halfInchFM / gGlobalParam.Caliparam.pc[DISP_PC_COFF_S4].fk;
-            break;
-        case MachineFlow_500:
-        case MachineFlow_600:
-            fmParam.aulCfg[DISP_FM_FM1] = halfInchFM / gGlobalParam.Caliparam.pc[DISP_PC_COFF_S1].fk;
-            fmParam.aulCfg[DISP_FM_FM2]= oneInchFm / gGlobalParam.Caliparam.pc[DISP_PC_COFF_S2].fk;
-            fmParam.aulCfg[DISP_FM_FM3] = halfInchFM / gGlobalParam.Caliparam.pc[DISP_PC_COFF_S3].fk;
-            fmParam.aulCfg[DISP_FM_FM4] = oneInchFm / gGlobalParam.Caliparam.pc[DISP_PC_COFF_S4].fk;
-            break;
-        default:
-            fmParam.aulCfg[DISP_FM_FM1] = quarterInchFM / gGlobalParam.Caliparam.pc[DISP_PC_COFF_S1].fk;
-            fmParam.aulCfg[DISP_FM_FM2]= halfInchFM / gGlobalParam.Caliparam.pc[DISP_PC_COFF_S2].fk;
-            fmParam.aulCfg[DISP_FM_FM3] = quarterInchFM / gGlobalParam.Caliparam.pc[DISP_PC_COFF_S3].fk;
-            fmParam.aulCfg[DISP_FM_FM4] = halfInchFM / gGlobalParam.Caliparam.pc[DISP_PC_COFF_S4].fk;
-            break;
-        }
-        break;
-    case MACHINE_Genie:
     case MACHINE_UP:
     case MACHINE_EDI:
     case MACHINE_RO:
+    case MACHINE_RO_H:
     case MACHINE_PURIST:
-    case MACHINE_ADAPT:
         fmParam.aulCfg[DISP_FM_FM1]  = quarterInchFM / gGlobalParam.Caliparam.pc[DISP_PC_COFF_S1].fk;
         break;
     default:
@@ -4612,7 +4507,7 @@ void MainSaveMacSnItem(int iMachineType,CATNO cn,LOTNO ln,int iIndex)
 
 void MainRetriveGlobalParam(void)
 {
-    gGlobalParam.iMachineType   = MACHINE_L_Genie;
+    gGlobalParam.iMachineType   = MACHINE_UP;
     
     gGlobalParam.TMParam.aulTime[TIME_PARAM_InitRunT1] = DEFAULT_InitRunT1;
     
@@ -4662,12 +4557,11 @@ void MainRetriveGlobalParam(void)
     /* Init */
     switch(gGlobalParam.iMachineType)
     {
-    case MACHINE_Genie:
     case MACHINE_EDI:
     case MACHINE_UP:
     case MACHINE_RO:
+    case MACHINE_RO_H:
     case MACHINE_PURIST:
-    case MACHINE_ADAPT:
         gGlobalParam.SubModSetting.ulFlags &= ~(1 << DISP_SM_HaveB3);
         break;
     default:
@@ -4889,8 +4783,9 @@ void MainWindow::CheckConsumptiveMaterialState()
 
     }        
 
-    if ((ulCurTime > gCMUsage.info.aulCms[DISP_N3_UVLIFEDAY])
-            && (iMask & (1 << DISP_N3_UV)))
+    if ((gGlobalParam.SubModSetting.ulFlags & (1 << DISP_SM_TankUV))
+      &&(ulCurTime > gCMUsage.info.aulCms[DISP_N3_UVLIFEDAY])
+      &&(iMask & (1 << DISP_N3_UV)))
     {
         ulTemp = (ulCurTime - gCMUsage.info.aulCms[DISP_N3_UVLIFEDAY])/DISP_DAYININSECOND;
 
@@ -5299,47 +5194,14 @@ void MainWindow::SaveConsumptiveMaterialInfo(void)
 
 QStringList MainWindow::m_strConsuamble[CAT_NUM];
 
-QPixmap * MainWindow::getBitmap(int id)
-{
-    return gpGlobalPixmaps[id];
-}
-
 void MainWindow::on_btn_clicked(int index)
 {
     printf("tmp = %d\r\n" , index);
 }
 
-void MainWindow::goAlarm()
-{
-    MenuPage *page = (MenuPage *)m_pSubPages[PAGE_MENU];
-
-    page->goAlarm();
-}
-
 void MainWindow::switchLanguage()
 {   
-    int iLoop;
-
     buildTranslation();
-
-    for (iLoop= 0; iLoop < m_pageList.count();iLoop++)
-    {
-        CPage *page = m_pageList[iLoop];
-
-        page->switchLanguage();
-    }   
-}
-
-void MainWindow::saveAlarmSP()
-{   
-    int iLoop;
-
-    for (iLoop= 0; iLoop < m_pageList.count();iLoop++)
-    {
-        CPage *page = m_pageList[iLoop];
-
-        page->buildTranslation();
-    }   
 }
 
 /**
@@ -5386,67 +5248,29 @@ void MainWindow::initGlobalStyleSheet()
  */
 void MainWindow::initConsumablesInfo()
 {
-    //RASP22045 (增压泵)、RASP22046 (增压泵)
+    m_strConsuamble[PPACK_CATNO] << "RR710CPN1";
+    m_strConsuamble[HPACK_CATNO] << "RR710H1N1";
+    m_strConsuamble[UPACK_CATNO] << "RR710Q1N1";
+    m_strConsuamble[ACPACK_CATNO] << "RR710ACN1";
+    m_strConsuamble[UV185_CATNO] <<  "RAUV212B7";
+    m_strConsuamble[UVTANK_CATNO] << "RAUV357A7";
+    m_strConsuamble[CLEANPACK_CATNO] << "RR710CLN1";
+    m_strConsuamble[ROPACK_CATNO] << "RR71R15N1" << "RR71R20N1";
     
-    m_strConsuamble[ACPACK_CATNO] << "RR700AC01" << "171-1254";
+    m_strConsuamble[EDI_CATNO] << "W3T101572" << "W3T101573" << "W3T262701";
+    m_strConsuamble[TANKVENTFILTER_CATNO] << "RATANKVN7";
+    m_strConsuamble[UPPUMP_CATNO] << "RASP743";
+    m_strConsuamble[ROPUMP_CATNO] << "RASP742";
 
-    m_strConsuamble[TPACK_CATNO] << "RR700T101" << "171-1259" << "RR504T101";
-
-    m_strConsuamble[PPACK_CATNO] << "RR700CP01" << "RR700CP02"
-                                 << "RR504CP01" << "RR504CPC1"
-                                 << "171-1255" << "171-1256"
-                                 << "RR504CPC1";
-
-    m_strConsuamble[UPACK_CATNO] << "RR700Q101" << "RR700Q201" << "RR700Q301"
-                                 << "RR700Q501" << "RR700Q601" << "RR700Q701"
-                                 << "171-1258" << "171-1260" << "171-1261"
-                                 << "RR504Q101";
-
-    m_strConsuamble[HPACK_CATNO] << "RR700H101" << "RR504H101" << "171-1257";
-
-    m_strConsuamble[ATPACK_CATNO] << "RR504AT01";
-
-    m_strConsuamble[CLEANPACK_CATNO] << "RR700CL01" << "RR504CL0" << "171-1281";
-
-    m_strConsuamble[UV254_CATNO] << "RAUV135A7" << "RAUV212A7" << "171-1282";
-
-    m_strConsuamble[UV185_CATNO] << "RAUV357B7" << "171-1283";
-
-    m_strConsuamble[UVTANK_CATNO] << "RAUV357A7" << "171-1270";
-
-    m_strConsuamble[TANKVENTFILTER_CATNO] << "RATANKVN7" << "RATANKVL1" 
-                                          << "RATANKVT1" << "RATANKVT2" 
-                                          << "171-1267";
- 
+    //两种终端过滤器合并成一种终端过滤器
+    m_strConsuamble[FINALFILTER_A_CATNO] << "RAFFC7250" << "RASP524" << "171-1262"
+                                         << "RAFFB7201" << "171-1263";
+#if 0
     //0.2 um Final Filter   A
     m_strConsuamble[FINALFILTER_A_CATNO] << "RAFFC7250" << "RASP524" << "171-1262";
-
     //Rephibio Filter   B
     m_strConsuamble[FINALFILTER_B_CATNO]  << "RAFFB7201" << "171-1263";
-
-    m_strConsuamble[UPPUMP_CATNO] << "RASP743" << "RASP740KT" << "171-1280";
-
-    m_strConsuamble[ROPACK_CATNO] << "RR70R0501" << "RR70R1001" << "RR70R1501"
-                                  << "RAR050001" << "RAR01H001" << "RAR03H001"
-                                  << "171-1276" << "171-1277";
-
-    m_strConsuamble[ROPUMP_CATNO] << "RASP742"
-                                  << "WRLPM07HP" << "WRLPM02HP" << "WRLPM03HP"
-                                  << "WRLPA1001" << "WRLPA0601" << "WRLPA0301"
-                                  << "171-1279";
-
-    m_strConsuamble[EDI_CATNO] << "W3T101572" << "W3T101573" << "W3T262701"
-                               << "W3T17324" << "W3T17326" << "W3T17328"
-                               << "W3T17331" << "W3T17333"
-                               << "171-1288" << "171-1289" << "171-1290";
-
-    m_strConsuamble[LOOPFILTER_CATNO] << "RAFF12201" << "RAFF22201";
-    m_strConsuamble[LOOPUV_CATNO] << "RAUV620A1" << "RAUV834A1";
-    m_strConsuamble[LOOPDI_CATNO] << "LAB1000IE" << "LAB0200IE" << "LAB0500IE" 
-                                  << "LAB1500IE";
-    
-    m_strConsuamble[PREPACK_CATNO] << "LAB02CP71" << "LAB02CP74" 
-                                   << "LAB02CP04" << "LAB02CP01";
+#endif
 }
 
 /**
@@ -5460,94 +5284,12 @@ void MainWindow::initAlarmCfg()
     {
         switch(iLoop)
         {
-        case MACHINE_L_Genie:
-            m_aMas[iLoop].aulMask[DISP_ALARM_PART0]  = DISP_ALARM_DEFAULT_PART0 ;
-            m_aMas[iLoop].aulMask[DISP_ALARM_PART0] &= ~((1 << DISP_ALARM_PART0_HPACK_OOP)
-                                                        |(1 << DISP_ALARM_PART0_ACPACK_OOP));
-
-            m_aMas[iLoop].aulMask[DISP_ALARM_PART1]  = DISP_ALARM_DEFAULT_PART1 ;
-            m_aMas[iLoop].aulMask[DISP_ALARM_PART1] &= ~(1 << DISP_ALARM_PART1_LOWER_CIR_WATER_CONDUCTIVITY);
-            break;
-        case MACHINE_L_UP:
-            m_aMas[iLoop].aulMask[DISP_ALARM_PART0]  = DISP_ALARM_DEFAULT_PART0 ;
-            m_aMas[iLoop].aulMask[DISP_ALARM_PART0] &= ~((1 << DISP_ALARM_PART0_ATPACK_OOP)
-                                                        |(1 << DISP_ALARM_PART0_ACPACK_OOP));
-
-            m_aMas[iLoop].aulMask[DISP_ALARM_PART1]  = DISP_ALARM_DEFAULT_PART1;            
-            m_aMas[iLoop].aulMask[DISP_ALARM_PART1] &= (~((1 << DISP_ALARM_PART1_LOWER_EDI_PRODUCT_RESISTENCE)
-                                                         |(1 << DISP_ALARM_PART1_HIGHER_EDI_PRODUCT_TEMPERATURE)
-                                                         |(1 << DISP_ALARM_PART1_LOWER_EDI_PRODUCT_TEMPERATURE)
-                                                         |(1 << DISP_ALARM_PART1_LOWER_CIR_WATER_CONDUCTIVITY)));
-            
-            break;
-        case MACHINE_L_EDI_LOOP:
-            m_aMas[iLoop].aulMask[DISP_ALARM_PART0]  = DISP_ALARM_DEFAULT_PART0 ;
-            m_aMas[iLoop].aulMask[DISP_ALARM_PART0] &= (~((1 << DISP_ALARM_PART0_UPACK_OOP)
-                                                         |(1 << DISP_ALARM_PART0_HPACK_OOP)
-                                                         |( 1 << DISP_ALARM_PART0_ACPACK_OOP)
-                                                         |(1 << DISP_ALARM_PART0_185UV_OOP)));
-
-            m_aMas[iLoop].aulMask[DISP_ALARM_PART1]  = DISP_ALARM_DEFAULT_PART1;
-            m_aMas[iLoop].aulMask[DISP_ALARM_PART1] &= (~((1 << DISP_ALARM_PART1_LOWER_UP_PRODUCT_RESISTENCE)
-                                                         |(1 << DISP_ALARM_PART1_HIGHER_UP_PRODUCT_TEMPERATURE)
-                                                         |(1 << DISP_ALARM_PART1_LOWER_UP_PRODUCT_TEMPERATURE)
-                                                         |(1 << DISP_ALARM_PART1_HIGHER_TOC_SENSOR_TEMPERATURE)
-                                                         |(1 << DISP_ALARM_PART1_LOWER_TOC_SENSOR_TEMPERATURE)
-                                                         |(1 << DISP_ALARM_PART1_LOWER_TOC_SOURCE_WATER_RESISTENCE)
-                                                         |(1 << DISP_ALARM_PART1_LOWER_CIR_WATER_CONDUCTIVITY)));
-            if(gAdditionalCfgParam.machineInfo.iMachineFlow >= 500)
-            {
-                m_aMas[iLoop].aulMask[DISP_ALARM_PART0] &= (~((1 << DISP_ALARM_PART0_PPACK_OOP)
-                                                             |(1 << DISP_ALARM_PART0_ATPACK_OOP)));
-            }
-            break;
-        case MACHINE_L_RO_LOOP:
-            m_aMas[iLoop].aulMask[DISP_ALARM_PART0]  = DISP_ALARM_DEFAULT_PART0;
-            m_aMas[iLoop].aulMask[DISP_ALARM_PART0] &= ( ~((1 << DISP_ALARM_PART0_ATPACK_OOP)
-                                                          |(1 << DISP_ALARM_PART0_HPACK_OOP)
-                                                          |(1 << DISP_ALARM_PART0_UPACK_OOP)
-                                                          |( 1 << DISP_ALARM_PART0_ACPACK_OOP)
-                                                          |(1 << DISP_ALARM_PART0_185UV_OOP)));
-
-            m_aMas[iLoop].aulMask[DISP_ALARM_PART1]  = DISP_ALARM_DEFAULT_PART1;
-            m_aMas[iLoop].aulMask[DISP_ALARM_PART1] &= (~((1 << DISP_ALARM_PART1_LOWER_EDI_PRODUCT_RESISTENCE)
-                                                         |(1 << DISP_ALARM_PART1_HIGHER_EDI_PRODUCT_TEMPERATURE)
-                                                         |(1 << DISP_ALARM_PART1_LOWER_EDI_PRODUCT_TEMPERATURE)
-                                                         |(1 << DISP_ALARM_PART1_LOWER_UP_PRODUCT_RESISTENCE)
-                                                         |(1 << DISP_ALARM_PART1_LOWER_UP_PRODUCT_TEMPERATURE)
-                                                         |(1 << DISP_ALARM_PART1_HIGHER_UP_PRODUCT_TEMPERATURE)
-                                                         |(1 << DISP_ALARM_PART1_HIGHER_TOC_SENSOR_TEMPERATURE)
-                                                         |(1 << DISP_ALARM_PART1_LOWER_TOC_SENSOR_TEMPERATURE)
-                                                         |(1 << DISP_ALARM_PART1_LOWER_TOC_SOURCE_WATER_RESISTENCE)
-                                                         |(1 << DISP_ALARM_PART1_LOWER_CIR_WATER_CONDUCTIVITY)));
-            if(gAdditionalCfgParam.machineInfo.iMachineFlow >= 500)
-            {
-                m_aMas[iLoop].aulMask[DISP_ALARM_PART0] &= ~(1 << DISP_ALARM_PART0_PPACK_OOP);
-            }
-            break;
-        case MACHINE_Genie:
-            /*alarm masks */
-            m_aMas[iLoop].aulMask[DISP_ALARM_PART0]  = DISP_ALARM_DEFAULT_PART0;
-            m_aMas[iLoop].aulMask[DISP_ALARM_PART0] &= (~((1 << DISP_ALARM_PART0_ATPACK_OOP)
-                                                          |(1 << DISP_ALARM_PART0_HPACK_OOP)
-                                                          |(1 << DISP_ALARM_PART0_PREPACK_OOP)
-                                                          |(1 << DISP_ALARM_PART0_TUBEUV_OOP)));
-
-            m_aMas[iLoop].aulMask[DISP_ALARM_PART1]  = DISP_ALARM_DEFAULT_PART1;
-            m_aMas[iLoop].aulMask[DISP_ALARM_PART1] &= (~((1 << DISP_ALARM_PART1_LOWER_TUBE_RESISTENCE)
-                                                         |(1 << DISP_ALARM_PART1_LOWER_SWTANKE_WATER_LEVEL)
-                                                         |(1 << DISP_ALARM_PART1_LOWER_RO_PRODUCT_FLOWING_VELOCITY)
-                                                         |(1 << DISP_ALARM_PART1_LOWER_RO_WASTE_FLOWING_VELOCITY)
-                                                         |(1 << DISP_ALARM_PART1_HIGHER_TUBE_TEMPERATURE)
-                                                         |(1 << DISP_ALARM_PART1_LOWER_TUBE_TEMPERATURE)));
-            m_bC1Regulator = true;
-            break;
         case MACHINE_UP:
-            /*alarm masks */
-            m_aMas[iLoop].aulMask[DISP_ALARM_PART0]  = DISP_ALARM_DEFAULT_PART0 ;
-            m_aMas[iLoop].aulMask[DISP_ALARM_PART0] &= (~((1 << DISP_ALARM_PART0_ATPACK_OOP)
-                                                         |(1 << DISP_ALARM_PART0_PREPACK_OOP)
-                                                         |(1 << DISP_ALARM_PART0_TUBEUV_OOP)));
+            m_aMas[iLoop].aulMask[DISP_ALARM_PART0]  = (1 << DISP_ALARM_PART0_PPACK_OOP) 
+                                                     | (1 << DISP_ALARM_PART0_HPACK_OOP) 
+                                                     | (1 << DISP_ALARM_PART0_UPACK_OOP)
+                                                     | (1 << DISP_ALARM_PART0_185UV_OOP) 
+                                                     | (1 << DISP_ALARM_PART0_TANKUV_OOP);
 
             m_aMas[iLoop].aulMask[DISP_ALARM_PART1]  = DISP_ALARM_DEFAULT_PART1;
             m_aMas[iLoop].aulMask[DISP_ALARM_PART1] &= (~((1 << DISP_ALARM_PART1_LOWER_EDI_PRODUCT_RESISTENCE)
@@ -5559,17 +5301,12 @@ void MainWindow::initAlarmCfg()
                                                          |(1 << DISP_ALARM_PART1_LOWER_EDI_PRODUCT_TEMPERATURE)
                                                          |(1 << DISP_ALARM_PART1_HIGHER_TUBE_TEMPERATURE)
                                                          |(1 << DISP_ALARM_PART1_LOWER_TUBE_TEMPERATURE)));
-            m_bC1Regulator = true;
+
             break;
         case MACHINE_EDI:
-            /*alarm masks */
-            m_aMas[iLoop].aulMask[DISP_ALARM_PART0]  = DISP_ALARM_DEFAULT_PART0 ;
-            m_aMas[iLoop].aulMask[DISP_ALARM_PART0] &= (~((1 << DISP_ALARM_PART0_185UV_OOP)
-                                                         |(1 << DISP_ALARM_PART0_ATPACK_OOP)
-                                                         |(1 << DISP_ALARM_PART0_PREPACK_OOP)
-                                                         |(1 << DISP_ALARM_PART0_HPACK_OOP) //2018.11.19
-                                                         |(1 << DISP_ALARM_PART0_TUBEUV_OOP)
-                                                         |(1 << DISP_ALARM_PART0_UPACK_OOP)));
+            m_aMas[iLoop].aulMask[DISP_ALARM_PART0]  = (1 << DISP_ALARM_PART0_PPACK_OOP) 
+                                                     | (1 << DISP_ALARM_PART0_ACPACK_OOP) 
+                                                     | (1 << DISP_ALARM_PART0_TANKUV_OOP);
 
             m_aMas[iLoop].aulMask[DISP_ALARM_PART1]  = DISP_ALARM_DEFAULT_PART1;
             m_aMas[iLoop].aulMask[DISP_ALARM_PART1] &= (~((1 << DISP_ALARM_PART1_LOWER_UP_PRODUCT_RESISTENCE)
@@ -5583,19 +5320,14 @@ void MainWindow::initAlarmCfg()
                                                           |(1 << DISP_ALARM_PART1_HIGHER_TOC_SENSOR_TEMPERATURE)
                                                           |(1 << DISP_ALARM_PART1_LOWER_TOC_SENSOR_TEMPERATURE)
                                                           |(1 << DISP_ALARM_PART1_LOWER_TOC_SOURCE_WATER_RESISTENCE)
+                                                          |(1 << DISP_ALARM_PART1_HIGHER_TOC)
                                                           |(1 << DISP_ALARM_PART1_LOWER_TUBE_TEMPERATURE)));
             
-            m_bC1Regulator = true;
             break;
         case MACHINE_RO:
-            /*alarm masks */
-            m_aMas[iLoop].aulMask[DISP_ALARM_PART0]  = DISP_ALARM_DEFAULT_PART0 ;
-            m_aMas[iLoop].aulMask[DISP_ALARM_PART0] &= (~((1 << DISP_ALARM_PART0_185UV_OOP)
-                                                         |(1 << DISP_ALARM_PART0_ATPACK_OOP)
-                                                         |(1 << DISP_ALARM_PART0_HPACK_OOP) //2018.11.12
-                                                         |(1 << DISP_ALARM_PART0_TUBEUV_OOP)
-                                                         |(1 << DISP_ALARM_PART0_PREPACK_OOP)
-                                                         |(1 << DISP_ALARM_PART0_UPACK_OOP)));
+            m_aMas[iLoop].aulMask[DISP_ALARM_PART0]  = (1 << DISP_ALARM_PART0_PPACK_OOP) 
+                                                     | (1 << DISP_ALARM_PART0_TANKUV_OOP);
+
 
             m_aMas[iLoop].aulMask[DISP_ALARM_PART1]  = DISP_ALARM_DEFAULT_PART1;
             m_aMas[iLoop].aulMask[DISP_ALARM_PART1] &= (~((1 << DISP_ALARM_PART1_LOWER_EDI_PRODUCT_RESISTENCE)
@@ -5612,19 +5344,37 @@ void MainWindow::initAlarmCfg()
                                                          |(1 << DISP_ALARM_PART1_HIGHER_TOC_SENSOR_TEMPERATURE)
                                                          |(1 << DISP_ALARM_PART1_LOWER_TOC_SENSOR_TEMPERATURE)
                                                          |(1 << DISP_ALARM_PART1_LOWER_TOC_SOURCE_WATER_RESISTENCE)
+                                                         |(1 << DISP_ALARM_PART1_HIGHER_TOC)
                                                          |(1 << DISP_ALARM_PART1_LOWER_TUBE_TEMPERATURE)));
-            m_bC1Regulator = true;
+            break;
+        case MACHINE_RO_H:
+            m_aMas[iLoop].aulMask[DISP_ALARM_PART0]  = (1 << DISP_ALARM_PART0_PPACK_OOP) 
+                                                     | (1 << DISP_ALARM_PART0_HPACK_OOP)
+                                                     | (1 << DISP_ALARM_PART0_TANKUV_OOP);
+
+            m_aMas[iLoop].aulMask[DISP_ALARM_PART1]  = DISP_ALARM_DEFAULT_PART1;
+            m_aMas[iLoop].aulMask[DISP_ALARM_PART1] &= (~((1 << DISP_ALARM_PART1_LOWER_EDI_PRODUCT_RESISTENCE)
+                                                         |(1 << DISP_ALARM_PART1_LOWER_UP_PRODUCT_RESISTENCE)
+                                                         |(1 << DISP_ALARM_PART1_LOWER_TUBE_RESISTENCE)
+                                                         |(1 << DISP_ALARM_PART1_LOWER_SWTANKE_WATER_LEVEL)
+                                                         |(1 << DISP_ALARM_PART1_LOWER_RO_PRODUCT_FLOWING_VELOCITY)
+                                                         |(1 << DISP_ALARM_PART1_LOWER_RO_WASTE_FLOWING_VELOCITY)
+                                                         |(1 << DISP_ALARM_PART1_HIGHER_EDI_PRODUCT_TEMPERATURE)
+                                                         |(1 << DISP_ALARM_PART1_LOWER_EDI_PRODUCT_TEMPERATURE)
+                                                         |(1 << DISP_ALARM_PART1_HIGHER_UP_PRODUCT_TEMPERATURE)
+                                                         |(1 << DISP_ALARM_PART1_LOWER_UP_PRODUCT_TEMPERATURE)
+                                                         |(1 << DISP_ALARM_PART1_HIGHER_TUBE_TEMPERATURE)
+                                                         |(1 << DISP_ALARM_PART1_HIGHER_TOC_SENSOR_TEMPERATURE)
+                                                         |(1 << DISP_ALARM_PART1_LOWER_TOC_SENSOR_TEMPERATURE)
+                                                         |(1 << DISP_ALARM_PART1_LOWER_TOC_SOURCE_WATER_RESISTENCE)
+                                                         |(1 << DISP_ALARM_PART1_HIGHER_TOC)
+                                                         |(1 << DISP_ALARM_PART1_LOWER_TUBE_TEMPERATURE)));
             break;
         case MACHINE_PURIST:
-            /*alarm masks */
-            m_aMas[iLoop].aulMask[DISP_ALARM_PART0]  = DISP_ALARM_DEFAULT_PART0 ;
-            m_aMas[iLoop].aulMask[DISP_ALARM_PART0] &= (~((1 << DISP_ALARM_PART0_254UV_OOP)
-                                                          |(1 << DISP_ALARM_PART0_TANKUV_OOP)
-                                                          |(1 << DISP_ALARM_PART0_TUBEUV_OOP)
-                                                          |(1 << DISP_ALARM_PART0_PPACK_OOP)
-                                                          |(1 << DISP_ALARM_PART0_ACPACK_OOP)
-                                                          |(1 << DISP_ALARM_PART0_PREPACK_OOP)
-                                                          |(1 << DISP_ALARM_PART0_ATPACK_OOP)));
+            m_aMas[iLoop].aulMask[DISP_ALARM_PART0]  = (1 << DISP_ALARM_PART0_HPACK_OOP) 
+                                                     | (1 << DISP_ALARM_PART0_UPACK_OOP)
+                                                     | (1 << DISP_ALARM_PART0_185UV_OOP) 
+                                                     | (1 << DISP_ALARM_PART0_TANKUV_OOP);
 
             m_aMas[iLoop].aulMask[DISP_ALARM_PART1]  = DISP_ALARM_DEFAULT_PART1;
             m_aMas[iLoop].aulMask[DISP_ALARM_PART1] &= (~((1 << DISP_ALARM_PART1_LOWER_SOURCE_WATER_PRESSURE)
@@ -5643,41 +5393,15 @@ void MainWindow::initAlarmCfg()
                                                          |(1 << DISP_ALARM_PART1_LOWER_TUBE_TEMPERATURE)
                                                          |(1 << DISP_ALARM_PART1_HIGHER_SOURCE_WATER_TEMPERATURE)
                                                          |(1 << DISP_ALARM_PART1_LOWER_SOURCE_WATER_TEMPERATURE)
-                                                         |(1 << DISP_ALARM_PART1_HIGH_WORK_PRESSURE)));
-            
-            m_bC1Regulator = true;
+                                                         |(1 << DISP_ALARM_PART1_HIGER_RO_PRODUCT_CONDUCTIVITY)
+                                                         |(1 << DISP_ALARM_PART1_HIGHER_RO_PRODUCT_TEMPERATURE)     
+                                                         |(1 << DISP_ALARM_PART1_LOWER_RO_PRODUCT_TEMPERATURE)  
+                                                         |(1 << DISP_ALARM_PART1_HIGH_WORK_PRESSURE)
+                                                         |(1 << DISP_ALARM_PART1_LOWER_WORK_PRESSURE)));
             break;
-        case MACHINE_ADAPT:
-            /*alarm masks */
-            m_aMas[iLoop].aulMask[DISP_ALARM_PART0]  = DISP_ALARM_DEFAULT_PART0 ;
-            m_aMas[iLoop].aulMask[DISP_ALARM_PART0] &= (~((1 << DISP_ALARM_PART0_254UV_OOP)
-                                                         |(1 << DISP_ALARM_PART0_TANKUV_OOP)
-                                                         |(1 << DISP_ALARM_PART0_TUBEUV_OOP)
-                                                         |(1 << DISP_ALARM_PART0_PREPACK_OOP)
-                                                         |(1 << DISP_ALARM_PART0_ATPACK_OOP)));
-
-            m_aMas[iLoop].aulMask[DISP_ALARM_PART1]  = DISP_ALARM_DEFAULT_PART1;
-            m_aMas[iLoop].aulMask[DISP_ALARM_PART1] &= (~((1 << DISP_ALARM_PART1_LOWER_EDI_PRODUCT_RESISTENCE)
-                                                         |(1 << DISP_ALARM_PART1_LOWER_TUBE_RESISTENCE)
-                                                         |(1 << DISP_ALARM_PART1_LOWER_PWTANKE_WATER_LEVEL)
-                                                         |(1 << DISP_ALARM_PART1_LOWER_PWTANKE_WATER_LEVEL)
-                                                         |(1 << DISP_ALARM_PART1_LOWER_RO_PRODUCT_FLOWING_VELOCITY)
-                                                         |(1 << DISP_ALARM_PART1_LOWER_RO_WASTE_FLOWING_VELOCITY)
-                                                         |(1 << DISP_ALARM_PART1_LOWER_CIR_WATER_CONDUCTIVITY)
-                                                         |(1 << DISP_ALARM_PART1_LOWER_HP_PRODUCT_WATER_CONDUCTIVITY)
-                                                         |(1 << DISP_ALARM_PART1_HIGHER_EDI_PRODUCT_TEMPERATURE)
-                                                         |(1 << DISP_ALARM_PART1_LOWER_EDI_PRODUCT_TEMPERATURE)
-                                                         |(1 << DISP_ALARM_PART1_HIGHER_TUBE_TEMPERATURE)
-                                                         |(1 << DISP_ALARM_PART1_LOWER_TUBE_TEMPERATURE)
-                                                         |(1 << DISP_ALARM_PART1_HIGHER_TOC_SENSOR_TEMPERATURE)
-                                                         |(1 << DISP_ALARM_PART1_LOWER_TOC_SENSOR_TEMPERATURE)
-                                                         |(1 << DISP_ALARM_PART1_LOWER_TOC_SOURCE_WATER_RESISTENCE)));
-            
-            m_bC1Regulator = true;
+        default:
             break;
         } 
-        m_aMas[iLoop].aulMask[DISP_ALARM_PART0] &= ~(1 << DISP_ALARM_PART0_PREPACK_OOP);
-        m_aMas[iLoop].aulMask[DISP_ALARM_PART0] &= ~(1 << DISP_ALARM_PART0_TUBEUV_OOP);
     }
 
 }
@@ -5693,151 +5417,49 @@ void MainWindow::initConsumablesCfg()
     {
         switch(iLoop)
         {
-        case MACHINE_L_Genie:
-            m_cMas[iLoop].aulMask[0]  = DISP_NOTIFY_DEFAULT ;
-            m_cMas[iLoop].aulMask[0] &= (~((1 << DISP_H_PACK)
-                                          |(1 << DISP_AC_PACK)));
-            break;
-        case MACHINE_L_UP:
-            m_cMas[iLoop].aulMask[0]  = DISP_NOTIFY_DEFAULT;
-            
-            m_cMas[iLoop].aulMask[0] &= (~((1 << DISP_AT_PACK)
-                                          |(1 << DISP_AC_PACK)));
-            break;
-        case MACHINE_L_EDI_LOOP:
-            m_cMas[iLoop].aulMask[0]  = DISP_NOTIFY_DEFAULT;
-
-            m_cMas[iLoop].aulMask[0] &= (~((1 << DISP_U_PACK)
-                                          |(1 << DISP_H_PACK)
-                                          |(1 << DISP_AC_PACK)
-                                          |(1 << DISP_T_B_FILTER)
-                                          |(1 << DISP_N2_UV)));
-            if(gAdditionalCfgParam.machineInfo.iMachineFlow >= 500)
-            {
-                 m_cMas[iLoop].aulMask[0] &= (~((1 << DISP_AT_PACK)
-                                               |(1 << DISP_P_PACK)
-                                               |(1 << DISP_T_A_FILTER)));
-            }
-            break;
-        case MACHINE_L_RO_LOOP:
-            m_cMas[iLoop].aulMask[0]  = DISP_NOTIFY_DEFAULT;
-
-            m_cMas[iLoop].aulMask[0] &= (~((1 << DISP_H_PACK)
-                                          |(1 << DISP_AT_PACK)
-                                          |(1 << DISP_AC_PACK)
-                                          |(1 << DISP_U_PACK)
-                                          |(1 << DISP_N2_UV)
-                                          |(1 << DISP_T_B_FILTER)));
-            if(gAdditionalCfgParam.machineInfo.iMachineFlow >= 500)
-            {
-                 m_cMas[iLoop].aulMask[0] &= (~((1 << DISP_P_PACK)
-                                               |(1 << DISP_T_A_FILTER)));
-            }
-            break;
-        case MACHINE_Genie:
-            m_cMas[iLoop].aulMask[0]  = DISP_NOTIFY_DEFAULT;
-
-            m_cMas[iLoop].aulMask[0] &= (~((1 << DISP_AT_PACK)
-                                         |(1 << DISP_H_PACK)
-                                         |(1 << DISP_N4_UV)
-                                         |(1 << DISP_N5_UV)
-                                         |(1 << DISP_TUBE_FILTER)
-                                         |(1 << DISP_TUBE_DI)));
-            break;
         case MACHINE_UP:
-            m_cMas[iLoop].aulMask[0]  = DISP_NOTIFY_DEFAULT;
-
-            m_cMas[iLoop].aulMask[0] &= (~((1 << DISP_AT_PACK)
-                                         |(1 << DISP_N1_UV)
-                                         |(1 << DISP_N4_UV)
-                                         |(1 << DISP_N5_UV)
-                                         |(1 << DISP_TUBE_FILTER)
-                                         |(1 << DISP_TUBE_DI)));
+            m_cMas[iLoop].aulMask[0]  = (1 << DISP_P_PACK)
+                                      | (1 << DISP_H_PACK)
+                                      | (1 << DISP_U_PACK)
+                                      | (1 << DISP_N2_UV)
+                                      | (1 << DISP_N3_UV)
+                                      | (1 << DISP_T_A_FILTER)
+                                      | (1 << DISP_W_FILTER);
             break;
         case MACHINE_EDI:
-            m_cMas[iLoop].aulMask[0]  = DISP_NOTIFY_DEFAULT;
-
-            m_cMas[iLoop].aulMask[0] &= (~((1 << DISP_AT_PACK)
-                                         |(1 << DISP_U_PACK)
-                                         |(1 << DISP_H_PACK)
-                                         |(1 << DISP_N2_UV)
-                                         |(1 << DISP_N4_UV)
-                                         |(1 << DISP_N5_UV)
-                                         |(1 << DISP_T_B_FILTER) //2018.11.19
-                                         |(1 << DISP_TUBE_FILTER)
-                                         |(1 << DISP_TUBE_DI)));
+            m_cMas[iLoop].aulMask[0]  = (1 << DISP_P_PACK)
+                                      | (1 << DISP_AC_PACK)
+                                      | (1 << DISP_N3_UV)
+                                      | (1 << DISP_T_A_FILTER)
+                                      | (1 << DISP_W_FILTER);
             break;
         case MACHINE_RO:
-            m_cMas[iLoop].aulMask[0]  = DISP_NOTIFY_DEFAULT;
-            m_cMas[iLoop].aulMask[0] &= (~((1 << DISP_AT_PACK)
-                                         |(1 << DISP_U_PACK)
-                                         |(1 << DISP_H_PACK)
-                                         |(1 << DISP_N1_UV)
-                                         |(1 << DISP_N2_UV)
-                                         |(1 << DISP_N4_UV)
-                                         |(1 << DISP_N5_UV)
-                                         |(1 << DISP_T_B_FILTER) //2018.11.12
-                                         |(1 << DISP_TUBE_FILTER)
-                                         |(1 << DISP_TUBE_DI)));
+            m_cMas[iLoop].aulMask[0]  = (1 << DISP_P_PACK)
+                                      | (1 << DISP_N3_UV)
+                                      | (1 << DISP_T_A_FILTER)
+                                      | (1 << DISP_W_FILTER);
+            break;
+        case MACHINE_RO_H:
+            m_cMas[iLoop].aulMask[0]  = (1 << DISP_P_PACK)
+                                      | (1 << DISP_H_PACK)
+                                      | (1 << DISP_N3_UV)
+                                      | (1 << DISP_T_A_FILTER)
+                                      | (1 << DISP_W_FILTER);
             break;
         case MACHINE_PURIST:
-            m_cMas[iLoop].aulMask[0]  = DISP_NOTIFY_DEFAULT;
-
-            m_cMas[iLoop].aulMask[0] &= (~((1 << DISP_PRE_PACK)
-                                         |(1 << DISP_AC_PACK)
-                                         |(1 << DISP_T_PACK)
-                                         |(1 << DISP_P_PACK)
-                                         |(1 << DISP_AT_PACK)
-                                         //|(1 << DISP_T_B_FILTER)
-                                         |(1 << DISP_N1_UV)
-                                         |(1 << DISP_N3_UV)
-                                         |(1 << DISP_N4_UV)
-                                         |(1 << DISP_N5_UV)
-                                         |(1 << DISP_TUBE_FILTER)
-                                         |(1 << DISP_TUBE_DI)));
-            
-            break;
-        case MACHINE_ADAPT:
-            m_cMas[iLoop].aulMask[0]  = DISP_NOTIFY_DEFAULT;
-
-            m_cMas[iLoop].aulMask[0] &= (~((1 << DISP_AT_PACK)
-                                           |(1 << DISP_AC_PACK)
-                                           |(1 << DISP_H_PACK)
-                                           |(1 << DISP_T_PACK)
-                                           |(1 << DISP_N1_UV)
-                                           |(1 << DISP_N3_UV)
-                                           |(1 << DISP_N4_UV)
-                                           |(1 << DISP_N5_UV)
-                                           |(1 << DISP_TUBE_FILTER)
-                                           |(1 << DISP_TUBE_DI)));
+            m_cMas[iLoop].aulMask[0]  = (1 << DISP_U_PACK)
+                                      | (1 << DISP_H_PACK)
+                                      | (1 << DISP_N2_UV)
+                                      | (1 << DISP_N3_UV)
+                                      | (1 << DISP_T_A_FILTER)
+                                      | (1 << DISP_W_FILTER);
             break;
         default:
             break;
         } 
-
-        if(!(gGlobalParam.MiscParam.ulMisFlags & (1 << DISP_SM_HP_Water_Cir)))
+        if(!(gGlobalParam.SubModSetting.ulFlags & (1 << DISP_SM_TankUV)))
         {
-            m_cMas[iLoop].aulMask[0] &= ~(1 <<  DISP_T_PACK);
-        }
-
-        if(!(gGlobalParam.SubModSetting.ulFlags & (1 << DISP_SM_Pre_Filter)))
-        {
-            m_cMas[iLoop].aulMask[0] &= ~(1 << DISP_PRE_PACK);
-        }
-
-        if (!(gGlobalParam.SubModSetting.ulFlags & (1 << DISP_SM_TubeUV)))
-        {
-            m_cMas[iLoop].aulMask[0] &= ~(1 << DISP_N4_UV);
-        }
-
-        if (!(gGlobalParam.SubModSetting.ulFlags & (1 << DISP_SM_HaveTubeFilter)))
-        {
-            m_cMas[iLoop].aulMask[0] &= ~(1 << DISP_TUBE_FILTER);
-        }
-    
-        if (!(gGlobalParam.SubModSetting.ulFlags & (1 << DISP_SM_TubeDI)))
-        {
-           m_cMas[iLoop].aulMask[0] &= ~(1 << DISP_TUBE_DI);
+            m_cMas[iLoop].aulMask[0]  &= ~(1 << DISP_N3_UV);
         }
     }
 }
@@ -5850,42 +5472,6 @@ void MainWindow::initMachineryCfg()
     {
         switch(iLoop)
         {
-        case MACHINE_L_Genie:
-            m_cMas[iLoop].aulMask[1] |= 1 << DISP_MACHINERY_SOURCE_BOOSTER_PUMP;
-            m_cMas[iLoop].aulMask[1] |= 1 << DISP_MACHINERY_TUBE_CIR_PUMP;
-            m_cMas[iLoop].aulMask[1] |= 1 << DISP_MACHINERY_CIR_PUMP;
-            m_cMas[iLoop].aulMask[1] |= 1 << DISP_MACHINERY_RO_MEMBRANE;
-            m_cMas[iLoop].aulMask[1] |= 1 << DISP_MACHINERY_RO_BOOSTER_PUMP;
-            m_cMas[iLoop].aulMask[1] |= 1 << DISP_MACHINERY_EDI;
-            break;
-        case MACHINE_L_UP:
-            m_cMas[iLoop].aulMask[1] |= 1 << DISP_MACHINERY_SOURCE_BOOSTER_PUMP;
-            m_cMas[iLoop].aulMask[1] |= 1 << DISP_MACHINERY_TUBE_CIR_PUMP;
-            m_cMas[iLoop].aulMask[1] |= 1 << DISP_MACHINERY_CIR_PUMP;
-            m_cMas[iLoop].aulMask[1] |= 1 << DISP_MACHINERY_RO_MEMBRANE;
-            m_cMas[iLoop].aulMask[1] |= 1 << DISP_MACHINERY_RO_BOOSTER_PUMP;
-            break;
-        case MACHINE_L_EDI_LOOP:
-            m_cMas[iLoop].aulMask[1] |= 1 << DISP_MACHINERY_SOURCE_BOOSTER_PUMP;
-            m_cMas[iLoop].aulMask[1] |= 1 << DISP_MACHINERY_TUBE_CIR_PUMP;
-            m_cMas[iLoop].aulMask[1] |= 1 << DISP_MACHINERY_CIR_PUMP;
-            m_cMas[iLoop].aulMask[1] |= 1 << DISP_MACHINERY_RO_MEMBRANE;
-            m_cMas[iLoop].aulMask[1] |= 1 << DISP_MACHINERY_RO_BOOSTER_PUMP;
-            m_cMas[iLoop].aulMask[1] |= 1 << DISP_MACHINERY_EDI;
-            break;
-        case MACHINE_L_RO_LOOP:
-            m_cMas[iLoop].aulMask[1] |= 1 << DISP_MACHINERY_SOURCE_BOOSTER_PUMP;
-            m_cMas[iLoop].aulMask[1] |= 1 << DISP_MACHINERY_TUBE_CIR_PUMP;
-            m_cMas[iLoop].aulMask[1] |= 1 << DISP_MACHINERY_CIR_PUMP;
-            m_cMas[iLoop].aulMask[1] |= 1 << DISP_MACHINERY_RO_MEMBRANE;
-            m_cMas[iLoop].aulMask[1] |= 1 << DISP_MACHINERY_RO_BOOSTER_PUMP;
-            break;
-        case MACHINE_Genie:
-            m_cMas[iLoop].aulMask[1] |= 1 << DISP_MACHINERY_CIR_PUMP;
-            m_cMas[iLoop].aulMask[1] |= 1 << DISP_MACHINERY_RO_MEMBRANE;
-            m_cMas[iLoop].aulMask[1] |= 1 << DISP_MACHINERY_RO_BOOSTER_PUMP;
-            m_cMas[iLoop].aulMask[1] |= 1 << DISP_MACHINERY_EDI;
-            break;
         case MACHINE_UP:
             m_cMas[iLoop].aulMask[1] |= 1 << DISP_MACHINERY_CIR_PUMP;
             m_cMas[iLoop].aulMask[1] |= 1 << DISP_MACHINERY_RO_MEMBRANE;
@@ -5898,6 +5484,7 @@ void MainWindow::initMachineryCfg()
             m_cMas[iLoop].aulMask[1] |= 1 << DISP_MACHINERY_EDI;
             break;
         case MACHINE_RO:
+        case MACHINE_RO_H:
             m_cMas[iLoop].aulMask[1] |= 1 << DISP_MACHINERY_CIR_PUMP;
             m_cMas[iLoop].aulMask[1] |= 1 << DISP_MACHINERY_RO_MEMBRANE;
             m_cMas[iLoop].aulMask[1] |= 1 << DISP_MACHINERY_RO_BOOSTER_PUMP;
@@ -5905,25 +5492,11 @@ void MainWindow::initMachineryCfg()
         case MACHINE_PURIST:
             m_cMas[iLoop].aulMask[1] |= 1 << DISP_MACHINERY_CIR_PUMP;
             break;
-        case MACHINE_ADAPT:
-            m_cMas[iLoop].aulMask[1] |= 1 << DISP_MACHINERY_CIR_PUMP;
-            m_cMas[iLoop].aulMask[1] |= 1 << DISP_MACHINERY_RO_MEMBRANE;
-            m_cMas[iLoop].aulMask[1] |= 1 << DISP_MACHINERY_RO_BOOSTER_PUMP;
-            break;
         default:
             break;
         } 
-
-        if(!(gGlobalParam.MiscParam.ulMisFlags & (1 << DISP_SM_SW_PUMP)))
-        {
-            m_cMas[iLoop].aulMask[1] &= ~(1 <<  DISP_MACHINERY_SOURCE_BOOSTER_PUMP);
-        }
-
-
     }
 }
-
-
 
 /**
  * 根据机型配置RFID和耗材的对应关系，配置柱子脱落报警信息
@@ -5936,96 +5509,6 @@ void MainWindow::initRFIDCfg()
     
     switch(gGlobalParam.iMachineType)
     {
-    case MACHINE_L_Genie:
-        MacRfidMap.ulMask4Normlwork |= (1 << APP_RFID_SUB_TYPE_ROPACK_OTHERS);
-        MacRfidMap.aiDeviceType4Normal[APP_RFID_SUB_TYPE_ROPACK_OTHERS] = DISP_P_PACK;
-        
-        MacRfidMap.ulMask4Normlwork |= (1 << APP_RFID_SUB_TYPE_HPACK_ATPACK);
-        MacRfidMap.aiDeviceType4Normal[APP_RFID_SUB_TYPE_HPACK_ATPACK] = DISP_AT_PACK;
-
-        MacRfidMap.ulMask4Normlwork |= (1 << APP_RFID_SUB_TYPE_UPACK_HPACK);
-        MacRfidMap.aiDeviceType4Normal[APP_RFID_SUB_TYPE_UPACK_HPACK] = DISP_U_PACK;
-
-        /*rfid for cleaning stage */
-        MacRfidMap.ulMask4Cleaning |= (1 << APP_RFID_SUB_TYPE_ROPACK_OTHERS);
-        MacRfidMap.aiDeviceType4Cleaning[APP_RFID_SUB_TYPE_ROPACK_OTHERS] = DISP_P_PACK | (1 << 16);
-        
-        MacRfidMap.ulMask4Cleaning |= (1 << APP_RFID_SUB_TYPE_HPACK_ATPACK);
-        MacRfidMap.aiDeviceType4Cleaning[APP_RFID_SUB_TYPE_HPACK_ATPACK] = DISP_AT_PACK;
-
-        MacRfidMap.ulMask4Cleaning |= (1 << APP_RFID_SUB_TYPE_UPACK_HPACK);
-        MacRfidMap.aiDeviceType4Cleaning[APP_RFID_SUB_TYPE_UPACK_HPACK] = DISP_U_PACK;
-        break;
-
-    case MACHINE_L_UP:
-        MacRfidMap.ulMask4Normlwork |= (1 << APP_RFID_SUB_TYPE_ROPACK_OTHERS);
-        MacRfidMap.aiDeviceType4Normal[APP_RFID_SUB_TYPE_ROPACK_OTHERS] = DISP_P_PACK;
-        
-        MacRfidMap.ulMask4Normlwork |= (1 << APP_RFID_SUB_TYPE_HPACK_ATPACK);
-        MacRfidMap.aiDeviceType4Normal[APP_RFID_SUB_TYPE_HPACK_ATPACK] = DISP_H_PACK;
-
-        MacRfidMap.ulMask4Normlwork |= (1 << APP_RFID_SUB_TYPE_UPACK_HPACK);
-        MacRfidMap.aiDeviceType4Normal[APP_RFID_SUB_TYPE_UPACK_HPACK] = DISP_U_PACK;
-
-        /*rfid for cleaning stage */
-        MacRfidMap.ulMask4Cleaning |= (1 << APP_RFID_SUB_TYPE_ROPACK_OTHERS);
-        MacRfidMap.aiDeviceType4Cleaning[APP_RFID_SUB_TYPE_ROPACK_OTHERS] = DISP_P_PACK | (1 << 16);
-        
-        MacRfidMap.ulMask4Cleaning |= (1 << APP_RFID_SUB_TYPE_HPACK_ATPACK);
-        MacRfidMap.aiDeviceType4Cleaning[APP_RFID_SUB_TYPE_HPACK_ATPACK] = DISP_H_PACK;
-
-        MacRfidMap.ulMask4Cleaning |= (1 << APP_RFID_SUB_TYPE_UPACK_HPACK);
-        MacRfidMap.aiDeviceType4Cleaning[APP_RFID_SUB_TYPE_UPACK_HPACK] = DISP_U_PACK;
-        break;
-
-    case MACHINE_L_EDI_LOOP:
-        if(gAdditionalCfgParam.machineInfo.iMachineFlow < 500)
-        {
-            MacRfidMap.ulMask4Normlwork |= (1 << APP_RFID_SUB_TYPE_ROPACK_OTHERS);
-            MacRfidMap.aiDeviceType4Normal[APP_RFID_SUB_TYPE_ROPACK_OTHERS] = DISP_P_PACK;
-
-            MacRfidMap.ulMask4Normlwork |= (1 << APP_RFID_SUB_TYPE_HPACK_ATPACK);
-            MacRfidMap.aiDeviceType4Normal[APP_RFID_SUB_TYPE_HPACK_ATPACK] = DISP_AT_PACK;
-
-            /*rfid for cleaning stage */
-            MacRfidMap.ulMask4Cleaning |= (1 << APP_RFID_SUB_TYPE_ROPACK_OTHERS);
-            MacRfidMap.aiDeviceType4Cleaning[APP_RFID_SUB_TYPE_ROPACK_OTHERS] = DISP_P_PACK | (1 << 16);
-
-            MacRfidMap.ulMask4Cleaning |= (1 << APP_RFID_SUB_TYPE_HPACK_ATPACK);
-            MacRfidMap.aiDeviceType4Cleaning[APP_RFID_SUB_TYPE_HPACK_ATPACK] = DISP_AT_PACK;
-        }
-        break;
-    case MACHINE_L_RO_LOOP:
-        if(gAdditionalCfgParam.machineInfo.iMachineFlow < 500)
-        {
-            MacRfidMap.ulMask4Normlwork |= (1 << APP_RFID_SUB_TYPE_ROPACK_OTHERS);
-            MacRfidMap.aiDeviceType4Normal[APP_RFID_SUB_TYPE_ROPACK_OTHERS] = DISP_P_PACK;
-
-            /*rfid for cleaning stage */
-            MacRfidMap.ulMask4Cleaning |= (1 << APP_RFID_SUB_TYPE_ROPACK_OTHERS);
-            MacRfidMap.aiDeviceType4Cleaning[APP_RFID_SUB_TYPE_ROPACK_OTHERS] = DISP_P_PACK | (1 << 16);
-        }
-        break;
-    case MACHINE_Genie:
-        MacRfidMap.ulMask4Normlwork |= (1 << APP_RFID_SUB_TYPE_PPACK_CLEANPACK);
-        MacRfidMap.aiDeviceType4Normal[APP_RFID_SUB_TYPE_PPACK_CLEANPACK] = DISP_P_PACK;
-
-        MacRfidMap.ulMask4Normlwork |= (1 << APP_RFID_SUB_TYPE_UPACK_HPACK);
-        MacRfidMap.aiDeviceType4Normal[APP_RFID_SUB_TYPE_UPACK_HPACK] = DISP_U_PACK;
-
-        MacRfidMap.ulMask4Normlwork |= (1 << APP_RFID_SUB_TYPE_ROPACK_OTHERS);
-        MacRfidMap.aiDeviceType4Normal[APP_RFID_SUB_TYPE_ROPACK_OTHERS] = DISP_AC_PACK;
-
-        /*rfid for cleaning stage */
-        MacRfidMap.ulMask4Cleaning |= (1 << APP_RFID_SUB_TYPE_PPACK_CLEANPACK);
-        MacRfidMap.aiDeviceType4Cleaning[APP_RFID_SUB_TYPE_PPACK_CLEANPACK] = DISP_P_PACK | (1 << 16);
-
-        MacRfidMap.ulMask4Cleaning |= (1 << APP_RFID_SUB_TYPE_UPACK_HPACK);
-        MacRfidMap.aiDeviceType4Cleaning[APP_RFID_SUB_TYPE_UPACK_HPACK] = DISP_U_PACK;
-        
-        MacRfidMap.ulMask4Normlwork |= (1 << APP_RFID_SUB_TYPE_ROPACK_OTHERS);
-        MacRfidMap.aiDeviceType4Normal[APP_RFID_SUB_TYPE_ROPACK_OTHERS] = DISP_AC_PACK;
-        break;
     case MACHINE_UP:
         MacRfidMap.ulMask4Normlwork |= (1 << APP_RFID_SUB_TYPE_PPACK_CLEANPACK);
         MacRfidMap.aiDeviceType4Normal[APP_RFID_SUB_TYPE_PPACK_CLEANPACK] = DISP_P_PACK;
@@ -6035,9 +5518,6 @@ void MainWindow::initRFIDCfg()
 
         MacRfidMap.ulMask4Normlwork |= (1 << APP_RFID_SUB_TYPE_UPACK_HPACK);
         MacRfidMap.aiDeviceType4Normal[APP_RFID_SUB_TYPE_UPACK_HPACK] = DISP_U_PACK;
-        
-        MacRfidMap.ulMask4Normlwork |= (1 << APP_RFID_SUB_TYPE_ROPACK_OTHERS);
-        MacRfidMap.aiDeviceType4Normal[APP_RFID_SUB_TYPE_ROPACK_OTHERS] = DISP_AC_PACK;
 
         /*rfid for cleaning stage */
         MacRfidMap.ulMask4Cleaning |= (1 << APP_RFID_SUB_TYPE_PPACK_CLEANPACK);
@@ -6048,9 +5528,6 @@ void MainWindow::initRFIDCfg()
 
         MacRfidMap.ulMask4Cleaning |= (1 << APP_RFID_SUB_TYPE_UPACK_HPACK);
         MacRfidMap.aiDeviceType4Cleaning[APP_RFID_SUB_TYPE_UPACK_HPACK] = DISP_U_PACK;
-        
-        MacRfidMap.ulMask4Normlwork |= (1 << APP_RFID_SUB_TYPE_ROPACK_OTHERS);
-        MacRfidMap.aiDeviceType4Normal[APP_RFID_SUB_TYPE_ROPACK_OTHERS] = DISP_AC_PACK;
         break;
     case MACHINE_EDI:
         MacRfidMap.ulMask4Normlwork |= (1 << APP_RFID_SUB_TYPE_PPACK_CLEANPACK);
@@ -6070,15 +5547,24 @@ void MainWindow::initRFIDCfg()
         MacRfidMap.ulMask4Normlwork |= (1 << APP_RFID_SUB_TYPE_PPACK_CLEANPACK);
         MacRfidMap.aiDeviceType4Normal[APP_RFID_SUB_TYPE_PPACK_CLEANPACK] = DISP_P_PACK;
 
-        MacRfidMap.ulMask4Normlwork |= (1 << APP_RFID_SUB_TYPE_ROPACK_OTHERS);
-        MacRfidMap.aiDeviceType4Normal[APP_RFID_SUB_TYPE_ROPACK_OTHERS] = DISP_AC_PACK;
+        /*rfid for cleaning stage */
+        MacRfidMap.ulMask4Cleaning |= (1 << APP_RFID_SUB_TYPE_PPACK_CLEANPACK);
+        MacRfidMap.aiDeviceType4Cleaning[APP_RFID_SUB_TYPE_PPACK_CLEANPACK] = DISP_P_PACK | (1 << 16);
+        
+        break;
+    case MACHINE_RO_H:
+        MacRfidMap.ulMask4Normlwork |= (1 << APP_RFID_SUB_TYPE_PPACK_CLEANPACK);
+        MacRfidMap.aiDeviceType4Normal[APP_RFID_SUB_TYPE_PPACK_CLEANPACK] = DISP_P_PACK;
+
+        MacRfidMap.ulMask4Normlwork |= (1 << APP_RFID_SUB_TYPE_HPACK_ATPACK);
+        MacRfidMap.aiDeviceType4Normal[APP_RFID_SUB_TYPE_HPACK_ATPACK] = DISP_H_PACK;
 
         /*rfid for cleaning stage */
         MacRfidMap.ulMask4Cleaning |= (1 << APP_RFID_SUB_TYPE_PPACK_CLEANPACK);
         MacRfidMap.aiDeviceType4Cleaning[APP_RFID_SUB_TYPE_PPACK_CLEANPACK] = DISP_P_PACK | (1 << 16);
-
-        MacRfidMap.ulMask4Normlwork |= (1 << APP_RFID_SUB_TYPE_ROPACK_OTHERS);
-        MacRfidMap.aiDeviceType4Normal[APP_RFID_SUB_TYPE_ROPACK_OTHERS] = DISP_AC_PACK;
+        
+        MacRfidMap.ulMask4Cleaning |= (1 << APP_RFID_SUB_TYPE_HPACK_ATPACK);
+        MacRfidMap.aiDeviceType4Cleaning[APP_RFID_SUB_TYPE_HPACK_ATPACK] = DISP_H_PACK;
         break;
     case MACHINE_PURIST:
         MacRfidMap.ulMask4Normlwork |= (1 << APP_RFID_SUB_TYPE_UPACK_HPACK);
@@ -6089,20 +5575,6 @@ void MainWindow::initRFIDCfg()
 
         /*rfid for cleaning stage */
         MacRfidMap.ulMask4Cleaning = 0;
-        break;
-    case MACHINE_ADAPT:
-        MacRfidMap.ulMask4Normlwork |= (1 << APP_RFID_SUB_TYPE_PPACK_CLEANPACK);
-        MacRfidMap.aiDeviceType4Normal[APP_RFID_SUB_TYPE_PPACK_CLEANPACK] = DISP_P_PACK;
-
-        MacRfidMap.ulMask4Normlwork |= (1 << APP_RFID_SUB_TYPE_UPACK_HPACK);
-        MacRfidMap.aiDeviceType4Normal[APP_RFID_SUB_TYPE_UPACK_HPACK] = DISP_U_PACK;
-        
-        /* rfid for cleaning stage */
-        MacRfidMap.ulMask4Cleaning |= (1 << APP_RFID_SUB_TYPE_PPACK_CLEANPACK);
-        MacRfidMap.aiDeviceType4Cleaning[APP_RFID_SUB_TYPE_PPACK_CLEANPACK] = DISP_P_PACK | (1 << 16);
-        
-        MacRfidMap.ulMask4Cleaning |= (1 << APP_RFID_SUB_TYPE_UPACK_HPACK);
-        MacRfidMap.aiDeviceType4Cleaning[APP_RFID_SUB_TYPE_UPACK_HPACK] = DISP_U_PACK;
         break;
     default:
         break;
@@ -6119,108 +5591,6 @@ void MainWindow::initRFIDCfg()
     }
 }
 
-void MainWindow::initUI()
-{
-    int /*row,*/index;
-
-    QString astrPageName [PAGE_NUM] = {
-#ifdef FLOWCHART
-        "flowchart",
-#endif
-        "main",
-        "menu",
-        "service",
-//        "set",
-    };
-
-    QString initPageName[Ex_Init_Num] =
-    {
-        "InitLan",
-        "InitTime",
-        "InitTankSet",
-        "InitSysConfig",
-        "InitNetwork",
-        "InitInstallConsumable",
-        "InitHandler",
-    };
-
-    this->resize(800, 600);
-
-    this->setWindowFlags(Qt::FramelessWindowHint|Qt::Widget);
-    this->setMouseTracking(true);
-
-    mainWidget = new QWidget(this);
-    mainWidget->setObjectName(QString::fromUtf8("mainWidget"));
-
-    this->setCentralWidget(mainWidget);
-
-    for (index = 0; index < GLOBAL_BMP_NUM; index++)
-    {
-        gpGlobalPixmaps[index] = new QPixmap(gGlobalPixelmapName[index], 0, Qt::ColorOnly);
-    }
-
-    m_pFonts[GLOBAL_FONT_12] = new QFont("" , 12 ,  QFont::Bold);
-    m_pFonts[GLOBAL_FONT_14] = new QFont("" , 14 ,  QFont::Bold);
-    m_pFonts[GLOBAL_FONT_24] = new QFont("" , 24 ,  QFont::Bold);
-    m_pFonts[GLOBAL_FONT_30] = new QFont("" , 30 ,  QFont::Bold);
-    m_pFonts[GLOBAL_FONT_40] = new QFont("" , 40 ,  QFont::Bold);
-    m_pFonts[GLOBAL_FONT_48] = new QFont("" , 48 ,  QFont::Bold);
-    m_pFonts[GLOBAL_FONT_60] = new QFont("" , 60 ,  QFont::Bold);
-    //  20200812: moved to webserver
-    //ex_dcj 
-#ifdef LOCAL_UI    
-    if(gAdditionalCfgParam.initMachine == 0)
-    {
-        for(int i = 0; i < Ex_Init_Num; i++)
-        {
-            m_pExInitWidgets[i] = new CBaseWidget(mainWidget);
-            m_pExInitWidgets[i]->setObjectName(initPageName[i]);
-            m_pExInitWidgets[i]->hide();
-            m_pExInitWidgets[i]->setGeometry(0, 0, 800, 600);
-        }
-        m_pExInitPages[Ex_Init_Lan] = new DInitLanguagepage(0,(CBaseWidget *)m_pExInitWidgets[Ex_Init_Lan] , this);
-        m_pExInitPages[Ex_Init_Time] = new DInitTimePage(0,(CBaseWidget *)m_pExInitWidgets[Ex_Init_Time] , this);
-        m_pExInitPages[Ex_Init_Tankcfg] = new DInitTankcfgpage(0,(CBaseWidget *)m_pExInitWidgets[Ex_Init_Tankcfg] , this);
-        m_pExInitPages[Ex_Init_Syscfg] = new DInitSyscfgpage(0,(CBaseWidget *)m_pExInitWidgets[Ex_Init_Syscfg] , this);
-        m_pExInitPages[Ex_Init_Network] = new DInitNetworkpage(0,(CBaseWidget *)m_pExInitWidgets[Ex_Init_Network] , this);
-        m_pExInitPages[Ex_Init_InstallConsumable] = new DInitConsumableInsPage(0,(CBaseWidget *)m_pExInitWidgets[Ex_Init_InstallConsumable] , this);
-        m_pExInitPages[Ex_Init_Handlercfg] = new DInitHandleCfgpage(0,(CBaseWidget *)m_pExInitWidgets[Ex_Init_Handlercfg] , this);
-        m_curExInitPage = m_pExInitPages[Ex_Init_Lan];
-    }
-#endif    
-    //ScreenPage
-    m_pScreenSleepWidget = new CBaseWidget(mainWidget);
-    m_pScreenSleepWidget->setObjectName("ScreenSleepPage");
-    m_pScreenSleepWidget->hide();
-    m_pScreenSleepWidget->setGeometry(0, 0, 800, 600);
-
-    m_pScreenSleepPage = new DScreenSleepPage(0, m_pScreenSleepWidget, this);
-    connect(m_pScreenSleepPage, SIGNAL(pageHide()), this, SLOT(on_Ex_ScreenPageHide()));
-    connect(this, SIGNAL(SleepPageShow(bool)), m_pScreenSleepPage, SLOT(on_SleepPageShow(bool)));
-    m_pPreviousPage = NULL;
-    //end
-
-    for (index = 0; index < PAGE_NUM; index++)
-    {
-        m_pSubWidget[index] = new CBaseWidget(mainWidget);
-        m_pSubWidget[index]->setObjectName(astrPageName[index]);
-        m_pSubWidget[index]->hide();
-        m_pSubWidget[index]->setGeometry(0,0,800,600);
-    }
-#ifdef FLOWCHART
-    m_pSubPages[PAGE_FLOWCHART]    = new DFlowChartPage(0,(CBaseWidget *)m_pSubWidget[PAGE_FLOWCHART] , this);
-    connect(this, SIGNAL(unitsChanged()), m_pSubPages[PAGE_FLOWCHART], SLOT(updateUnits()));
-    connect(this, SIGNAL(updateFlowChartAlarm(const QString&,bool)),
-            m_pSubPages[PAGE_FLOWCHART], SLOT(on_updateAlarmMsg(const QString&, bool)));
-#endif
-
-    m_pSubPages[PAGE_MAIN]    = new MainPage(0,(CBaseWidget *)m_pSubWidget[PAGE_MAIN] , this);
-    m_pSubPages[PAGE_MENU]    = new MenuPage(0 , (CBaseWidget *)m_pSubWidget[PAGE_MENU],this );
-    m_pSubPages[PAGE_SERVICE] = new ServicePage(0 , (CBaseWidget *)m_pSubWidget[PAGE_SERVICE] , this);
-    m_pCurPage   = m_pSubPages[PAGE_MAIN];
-    m_curPageIdx = PAGE_MAIN;
-}
-
 MainWindow::MainWindow(QMainWindow *parent) :
     QMainWindow(parent)/*, ui(new Ui::MainWindow)*/
 {
@@ -6233,9 +5603,7 @@ MainWindow::MainWindow(QMainWindow *parent) :
     m_aMas          = m_pCcb->m_aMas;
     m_cMas          = m_pCcb->m_cMas;
 
-    m_bSplash = false;
-
-    m_bC1Regulator = false;
+    m_bC1Regulator = true;
     g_bNewPPack = 0;
     excepCounter = 0;
     //Set the factory default time for RFID tags
@@ -6257,8 +5625,6 @@ MainWindow::MainWindow(QMainWindow *parent) :
     m_iLevel        = 0;
     m_iRfidDelayedMask      = 0;
     m_iRfidBufferActiveMask = 0;
-    m_pCurPage              = NULL;
-    m_curExInitPage         = NULL;
 
     initConsumablesInfo();
 
@@ -6267,11 +5633,6 @@ MainWindow::MainWindow(QMainWindow *parent) :
     MainRetriveCMInfo(gGlobalParam.iMachineType,gCMUsage.info);
 
     Write_sys_int(PWMLCD_FILE,gGlobalParam.MiscParam.iBrightness);
-
-    m_bLoged = true;
-
-    iFirst = 1;
-    m_bLockupDlg = false;
 
     m_iExeActiveMask = 0;
     m_iFmActiveMask  = 0;
@@ -6326,8 +5687,8 @@ MainWindow::MainWindow(QMainWindow *parent) :
 
     memset(m_aRfid,0,sizeof(m_aRfid));
 
-    
-    /* ui init, place buildTranslation before initUI */
+    m_pRecordParams = new CRecordParams(this);
+
     buildTranslation();
 
     initHandler();
@@ -6348,8 +5709,6 @@ MainWindow::MainWindow(QMainWindow *parent) :
     initMachineryCfg(); // 20200818 add
     
     checkCMParam(); //2019.6.17 add
-
-    initUI();  
     
     /* other init */
     m_iLstDay = DispGetDay();
@@ -6370,12 +5729,6 @@ MainWindow::MainWindow(QMainWindow *parent) :
     connect(m_timeSecondTimer, SIGNAL(timeout()), this, SLOT(on_timerSecondEvent()),Qt::QueuedConnection);
     m_timeSecondTimer->start(SECOND_EVENT_LENGTH); // peroid of one second
 
-    connect(this, SIGNAL(autoLogin()),
-     this, SLOT(on_AutoLogin()),Qt::QueuedConnection);
-
-    connect(this, SIGNAL(userNeedLogin()),
-            this, SLOT(on_userLogin()));
-
     m_timerBuzzer = new QTimer(this);
     connect(m_timerBuzzer, SIGNAL(timeout()), this, SLOT(on_timerBuzzerEvent()),Qt::QueuedConnection);
 
@@ -6391,33 +5744,14 @@ MainWindow::MainWindow(QMainWindow *parent) :
     updateTubeCirCfg();
 
     initRFIDCfg();
+    initSetPointCfg();
+    initSystemCfgInfo();
 
     //ex
     for(iLoop = 0; iLoop < APP_RFID_SUB_TYPE_NUM; iLoop++)
     {
         m_checkConsumaleInstall[iLoop] = new DCheckConsumaleInstall(iLoop, this);
-        m_consumaleInstallDialog[iLoop] = new DConsumableInstallDialog(iLoop, this);
-        m_consumaleInstallDialog[iLoop]->hide();
-        m_consumaleInstallDialog[iLoop]->setGeometry(200, 175, 350, 250);
 
-#ifdef LOCAL_UI
-        connect(m_checkConsumaleInstall[iLoop], SIGNAL(consumableMsg(int,QString,QString)),
-            m_consumaleInstallDialog[iLoop], SLOT(setConsumableName(int,QString,QString)));
-
-        connect(m_consumaleInstallDialog[iLoop], SIGNAL(installConusumable()),
-            m_checkConsumaleInstall[iLoop], SLOT(updateConsumaleMsg()));
-
-        connect(m_consumaleInstallDialog[iLoop], SIGNAL(setCheckStatus(bool)),
-            m_checkConsumaleInstall[iLoop], SLOT(setBusystatus(bool)));
-
-        connect(m_consumaleInstallDialog[iLoop], SIGNAL(consumableTypeChanged(int)),
-                m_checkConsumaleInstall[iLoop], SLOT(updateConsumableType(int))); // ylf: 20200814 : unused signal
-        if(0 == gAdditionalCfgParam.initMachine)
-        {
-            connect(m_checkConsumaleInstall[iLoop], SIGNAL(consumableInstallFinished(int)),
-                m_pExInitPages[Ex_Init_InstallConsumable], SLOT(updateConsumableInstall(int)));
-        }
-#else
         connect(m_checkConsumaleInstall[iLoop], SIGNAL(consumableMsg(int,QString,QString)),
             m_pCcb->m_pConsumableInstaller[iLoop], SLOT(setConsumableName(int,QString,QString)),Qt::QueuedConnection);
         
@@ -6429,7 +5763,7 @@ MainWindow::MainWindow(QMainWindow *parent) :
  
         connect(m_checkConsumaleInstall[iLoop], SIGNAL(consumableInstallFinished(int)),
             m_pCcb->m_pConsumableInstaller[iLoop], SLOT(updateConsumableInstall(int)),Qt::QueuedConnection);        
-#endif
+
     }
 
     for(iLoop = 0; iLoop < EX_RECT_NUM; iLoop++)
@@ -6450,40 +5784,20 @@ MainWindow::MainWindow(QMainWindow *parent) :
     m_pCcb->start();
 
     connect(m_pCcb, SIGNAL(dispIndication(unsigned char *,int)),
-     this, SLOT(on_dispIndication(unsigned char *,int)),Qt::QueuedConnection );
+            this, SLOT(on_dispIndication(unsigned char *,int)),Qt::QueuedConnection );
 
     connect(m_pCcb, SIGNAL(iapIndication(IAP_NOTIFY_STRU *)),
-     this, SLOT(on_IapIndication(IAP_NOTIFY_STRU *)),Qt::QueuedConnection );
+            this, SLOT(on_IapIndication(IAP_NOTIFY_STRU *)),Qt::QueuedConnection );
 
     // 2020/08/08 add for consumable material service life reset
-    connect(m_pCcb, SIGNAL(cmresetindication(unsigned int)),
-     this, SLOT(on_cm_reset(unsigned int)),Qt::QueuedConnection );
+    connect(m_pCcb, SIGNAL(cmresetindication(unsigned int)), 
+            this, SLOT(on_cm_reset(unsigned int)),Qt::QueuedConnection );
 
-#ifdef LOCAL_UI    
-    if(gAdditionalCfgParam.initMachine == 0)
-    {
-        setStartCheckConsumable(false);
-        m_pExInitPages[Ex_Init_Lan]->show(true);    
-    }
-    else
-    {
-        setStartCheckConsumable(true);
+    connect(m_pCcb, SIGNAL(startQtwTimer(int)), this, SLOT(onMainStartQtwTimer(int)));
+    connect(this, SIGNAL(qtwTimerOut()), m_pCcb, SLOT(onQtwTimerOut()));
 
-        if(0 == gAdditionalCfgParam.productInfo.iCompany)
-        {
-            Splash();
-        }
-        else
-        {
-            mainDisplay();
-        }
-    }
-#else
     setStartCheckConsumable(true);
-    mainDisplay();
-#endif    
 
-    initScreenSleep();
     initMachineFlow();
     checkTubeCir();
     
@@ -6494,10 +5808,6 @@ MainWindow::MainWindow(QMainWindow *parent) :
     }
     initHttpWorker();
 #endif
-
-    m_pWifiConfigDlg = new DWifiConfigDialog(this);
-    m_pWifiConfigDlg->hide();
-    m_pWifiConfigDlg->move(250, 210);
 
     Task_DispatchWorkTask(WebServerProc,NULL);
 }
@@ -6657,59 +5967,9 @@ void MainWindow::buzzerHandle()
 
 }
 
-void MainWindow::mainDisplay()
-{
-    if(m_bSplash)
-    {
-        m_pMovieGif->stop();
-        m_pLabelGif->hide();
-
-        delete m_pLabelGif;
-        delete m_pMovieGif;
-
-        m_bSplash = false;
-    }
-
-    m_pSubPages[PAGE_MAIN]->show(true);
-
-    if(gAdditionalCfgParam.initMachine)
-    {
-        QTimer::singleShot(1000, this, SLOT(retriveLastRunState()));
-    }
-}
-
 void MainWindow::updEcoInfo(int index)
 {
-
-    if (NULL != m_pSubPages[PAGE_MAIN])
-    {
-        MainPage *page = (MainPage *)m_pSubPages[PAGE_MAIN];
-        page->updEcoInfo(index,&m_EcoInfo[index]);
-    }
-#ifdef FLOWCHART
-    if (NULL != m_pSubPages[PAGE_FLOWCHART])
-    {
-        DFlowChartPage *page = (DFlowChartPage *)m_pSubPages[PAGE_FLOWCHART];
-        page->updEcoInfo(index, &m_EcoInfo[index]);
-    }
-#endif
-    if (NULL != m_pSubPages[PAGE_MENU])
-    {
-        MenuPage *page = (MenuPage *)m_pSubPages[PAGE_MENU];
-
-//        WaterQualityPage *subpage = (WaterQualityPage *)page->getSubPage(MENU_BTN_WATER_QUALITY_PARAMETER);
-        DWaterQualityPage *subpage = (DWaterQualityPage *)page->getSubPage(MENU_BTN_WATER_QUALITY_PARAMETER);
-        subpage->updEcoInfo(index,&m_EcoInfo[index]);
-    }
-
-    if (APP_EXE_I1_NO == index)
-    {
-        if (m_pCcb->DispGetInitRunFlag())
-        {
-            m_fSourceWaterConductivity = m_EcoInfo[index].fQuality;
-        }
-    }
-
+    m_pRecordParams->updEcoInfo(index,&m_EcoInfo[index]);
 #ifdef D_HTTPWORK
     // Use DNetworkData
     m_uploadNetData.m_waterQuality[index].fG25x = m_EcoInfo[index].fQuality;
@@ -6733,52 +5993,14 @@ void MainWindow::updTank()
     /* calc */
     float liter = (m_fPressure[APP_EXE_PM2_NO]/100)*gGlobalParam.PmParam.afCap[APP_EXE_PM2_NO];
     int   level = (int)((liter*100) / gGlobalParam.PmParam.afCap[APP_EXE_PM2_NO]);
-#ifdef FLOWCHART
-    if (NULL != m_pSubPages[PAGE_FLOWCHART])
-    {
-        DFlowChartPage *page = (DFlowChartPage *)m_pSubPages[PAGE_FLOWCHART];
-        page->updTank(level, liter);
-    }
-#endif
+
 #ifdef D_HTTPWORK
     m_uploadNetData.m_tankInfo[0].iPercent = level;
     m_uploadNetData.m_tankInfo[0].fVolume = liter;
 #endif
-    if (NULL != m_pSubPages[PAGE_MAIN])
-    {
-        MainPage *page = (MainPage *)m_pSubPages[PAGE_MAIN];
-        page->updTank(level,liter);
-    }
 
-    if (NULL != m_pSubPages[PAGE_MENU])
-    {
-        MenuPage *page = (MenuPage *)m_pSubPages[PAGE_MENU];
+    m_pRecordParams->updTank(level, liter);
 
-      //  WaterQualityPage *subpage =(WaterQualityPage *)page->getSubPage(MENU_BTN_WATER_QUALITY_PARAMETER);
-         DWaterQualityPage *subpage =(DWaterQualityPage *)page->getSubPage(MENU_BTN_WATER_QUALITY_PARAMETER);
-        subpage->updTank(level,liter);
-    }   
-    //ex
-    if (NULL != m_pSubPages[PAGE_MENU])
-    {
-        MenuPage *page = (MenuPage *)m_pSubPages[PAGE_MENU];
-
-        SystemMonitorPage *subpage =(SystemMonitorPage *)page->getSubPage(MENU_BTN_SYSTEM_MONITOR);
-
-        subpage->updateTankLevel(level);
-    }
-
-    if (NULL != m_pSubPages[PAGE_SERVICE])
-    {
-        ServicePage *page = (ServicePage *)m_pSubPages[PAGE_SERVICE];
-
-        SetPage* subpage = (SetPage*)page->getSubPage(SET_BTN_SERVICE);
-
-        DFactoryTestPage *subSubpage = (DFactoryTestPage *)subpage->getSubPage(SET_BTN_SYSTEM_FACTORYTEST);
-
-        subSubpage->updTank(level,liter);
-    }
-    //end
     if (abs(m_iLevel - level) >= 1)
     {
         m_iLevel = level;
@@ -6793,40 +6015,17 @@ void MainWindow::updSourceTank()
     float liter = (m_fPressure[APP_EXE_PM3_NO]/100)*gGlobalParam.PmParam.afCap[APP_EXE_PM3_NO];
     int   level = (int)((liter*100) / gGlobalParam.PmParam.afCap[APP_EXE_PM3_NO]);
 
+    m_pRecordParams->updSourceTank(level, liter);
 #ifdef D_HTTPWORK
     m_uploadNetData.m_tankInfo[1].iPercent = level;
     m_uploadNetData.m_tankInfo[1].fVolume = liter;
 #endif
-
-    if (NULL != m_pSubPages[PAGE_SERVICE])
-    {
-        ServicePage *page = (ServicePage *)m_pSubPages[PAGE_SERVICE];
-
-        SetPage* subpage = (SetPage*)page->getSubPage(SET_BTN_SERVICE);
-
-        DFactoryTestPage *subSubpage = (DFactoryTestPage *)subpage->getSubPage(SET_BTN_SYSTEM_FACTORYTEST);
-
-        subSubpage->updSourceTank(level,liter);
-    }
-
-    if (NULL != m_pSubPages[PAGE_MENU])
-    {
-        MenuPage *page = (MenuPage *)m_pSubPages[PAGE_MENU];
-        DWaterQualityPage *subpage = (DWaterQualityPage*)page->getSubPage(MENU_BTN_WATER_QUALITY_PARAMETER);
-
-        subpage->updSourceTank(level,liter);
-    }
 }
 
 void MainWindow::updQtwState(int iType,bool bStart)
 {
-    MainPage *pPage = (MainPage *)m_pSubPages[PAGE_MAIN];
-
-    if (pPage)
-    {
-       pPage->updQtwState(iType,bStart);
-    }
-
+    Q_UNUSED(iType);
+    Q_UNUSED(bStart);
 }
 
 void MainWindow::updPressure(int iIdx)
@@ -6835,39 +6034,11 @@ void MainWindow::updPressure(int iIdx)
     switch(iIdx)
     {
     case APP_EXE_PM1_NO:
-    {
-        if (NULL != m_pSubPages[PAGE_MENU])
-        {
-            MenuPage *page = (MenuPage *)m_pSubPages[PAGE_MENU];
-        
-           // WaterQualityPage *subpage = (WaterQualityPage *)page->getSubPage(MENU_BTN_WATER_QUALITY_PARAMETER);
-            DWaterQualityPage *subpage = (DWaterQualityPage *)page->getSubPage(MENU_BTN_WATER_QUALITY_PARAMETER);
-            subpage->updPressure(iIdx, m_fPressure[iIdx]);
-
-        }
-
-        if (NULL != m_pSubPages[PAGE_SERVICE])
-        {
-            ServicePage *page = (ServicePage *)m_pSubPages[PAGE_SERVICE];
-
-            SetPage* subpage = (SetPage*)page->getSubPage(SET_BTN_SERVICE);
-
-            DFactoryTestPage *subSubpage = (DFactoryTestPage *)subpage->getSubPage(SET_BTN_SYSTEM_FACTORYTEST);
-
-            subSubpage->updatePressure(iIdx, m_fPressure[iIdx]);
-        }
-#ifdef FLOWCHART
-        if (NULL != m_pSubPages[PAGE_FLOWCHART])
-        {
-            DFlowChartPage *page = (DFlowChartPage *)m_pSubPages[PAGE_FLOWCHART];
-            page->updPressure(iIdx, m_fPressure[iIdx]);
-        }
-#endif
+        m_pRecordParams->updPressure(iIdx, m_fPressure[iIdx]);
 #ifdef D_HTTPWORK
         m_uploadNetData.m_otherInfo.fROPressure = m_fPressure[iIdx];
 #endif
         break;
-     }
     case APP_EXE_PM2_NO:
         updTank();
         break;
@@ -6881,69 +6052,16 @@ void MainWindow::updPressure(int iIdx)
 
 void MainWindow::updFlowInfo(int iIdx)
 {
-    if (NULL != m_pSubPages[PAGE_MENU])
+    int iTmDelta = m_periodEvents - m_iLstFlowMeterTick[iIdx];
+    int iFmDelta;
+
+    if ((iTmDelta >= (FM_CALC_PERIOD/PERIOD_EVENT_LENGTH))
+        && (m_ulLstFlowMeter[iIdx] != 0))
     {
-        MenuPage *page = (MenuPage *)m_pSubPages[PAGE_MENU];
-    
-       // WaterQualityPage *subpage =(WaterQualityPage *) page->getSubPage(MENU_BTN_WATER_QUALITY_PARAMETER);
-        DWaterQualityPage *subpage =(DWaterQualityPage *) page->getSubPage(MENU_BTN_WATER_QUALITY_PARAMETER);
-    
-        {
-            int iTmDelta = m_periodEvents - m_iLstFlowMeterTick[iIdx];
-            int iFmDelta;
-    
-            if ((iTmDelta >= (FM_CALC_PERIOD/PERIOD_EVENT_LENGTH))
-                && (m_ulLstFlowMeter[iIdx] != 0))
-            {
-                iFmDelta = m_ulFlowMeter[iIdx] - m_ulLstFlowMeter[iIdx];
-            
-                subpage->updFlowInfo(iIdx,(iFmDelta * TOMLPERMIN / iTmDelta));
-            }
-        }       
-        
+        iFmDelta = m_ulFlowMeter[iIdx] - m_ulLstFlowMeter[iIdx];
+
+        m_pRecordParams->updFlowInfo(iIdx, (iFmDelta * TOMLPERMIN / iTmDelta));
     }
-
-    if (NULL != m_pSubPages[PAGE_SERVICE])
-    {
-        ServicePage *page = (ServicePage *)m_pSubPages[PAGE_SERVICE];
-
-        SetPage* subpage = (SetPage*)page->getSubPage(SET_BTN_SERVICE);
-
-        DFactoryTestPage *subSubpage = (DFactoryTestPage *)subpage->getSubPage(SET_BTN_SYSTEM_FACTORYTEST);
-
-        {
-            int iTmDelta = m_periodEvents - m_iLstFlowMeterTick[iIdx];
-            int iFmDelta;
-
-            if ((iTmDelta >= (FM_CALC_PERIOD/PERIOD_EVENT_LENGTH))
-                && (m_ulLstFlowMeter[iIdx] != 0))
-            {
-                iFmDelta = m_ulFlowMeter[iIdx] - m_ulLstFlowMeter[iIdx];
-
-                subSubpage->updateFlow(iIdx,(iFmDelta * TOMLPERMIN / iTmDelta));
-            }
-        }
-    }
-#ifdef FLOWCHART
-    if (NULL != m_pSubPages[PAGE_FLOWCHART])
-    {
-        DFlowChartPage *page = (DFlowChartPage *)m_pSubPages[PAGE_FLOWCHART];
-        {
-            int iTmDelta = m_periodEvents - m_iLstFlowMeterTick[iIdx];
-            int iFmDelta;
-
-            if ((iTmDelta >= (FM_CALC_PERIOD/PERIOD_EVENT_LENGTH))
-                && (m_ulLstFlowMeter[iIdx] != 0))
-            {
-                iFmDelta = m_ulFlowMeter[iIdx] - m_ulLstFlowMeter[iIdx];
-
-                page->updFlowInfo(iIdx,(iFmDelta * TOMLPERMIN / iTmDelta));
-            }
-        }
-
-    }
-#endif
-
 #ifdef D_HTTPWORK
     {
         //for network data
@@ -7057,6 +6175,309 @@ void MainWindow::initRfid()
 
 }
 
+void MainWindow::initSetPointCfg()
+{
+    int iIdx = 0;
+    
+    struct PARAM_ITEM_TYPE {
+        int iDspType;
+        int iParamId[2];
+    }aIds[22];
+    
+    switch(gGlobalParam.iMachineType)/*B1自来水压力下限*/
+    {
+    case MACHINE_UP:
+    case MACHINE_EDI:
+    case MACHINE_RO:
+    case MACHINE_RO_H:
+        aIds[iIdx].iDspType    = SET_POINT_FORMAT1;
+        aIds[iIdx].iParamId[0] = MACHINE_PARAM_SP1;
+        iIdx++;     
+        break;
+    default:
+        break;
+    } 
+    
+    switch(gGlobalParam.iMachineType)/*工作压力上限*/
+    {
+    case MACHINE_UP:
+    case MACHINE_EDI:
+    case MACHINE_RO:
+    case MACHINE_RO_H:
+        aIds[iIdx].iDspType    = SET_POINT_FORMAT1;
+        aIds[iIdx].iParamId[0] = MACHINE_PARAM_SP33;
+        iIdx++;
+        break;
+    default:
+        break;
+    }
+    
+    switch(gGlobalParam.iMachineType)/*自来水电导率上限 I1a*/
+    {
+    case MACHINE_UP:
+    case MACHINE_EDI:
+    case MACHINE_RO:
+    case MACHINE_RO_H:
+        aIds[iIdx].iDspType    = SET_POINT_FORMAT1;
+        aIds[iIdx].iParamId[0] = MACHINE_PARAM_SP13;
+        iIdx++;
+        break;
+    default:
+        break;
+    }
+    
+    switch(gGlobalParam.iMachineType)/* 进水温度上限？℃ 下限？℃ */
+    {
+    case MACHINE_UP:
+    case MACHINE_EDI:
+    case MACHINE_RO:
+    case MACHINE_RO_H:
+        aIds[iIdx].iDspType    = SET_POINT_FORMAT2;
+        aIds[iIdx].iParamId[0] = MACHINE_PARAM_SP18;
+        aIds[iIdx].iParamId[1] = MACHINE_PARAM_SP19;
+        iIdx++;
+        break;
+    default:
+        break;
+    }
+    
+    switch(gGlobalParam.iMachineType)/* RO产水上限？μS/cm */
+    {
+    case MACHINE_UP:
+    case MACHINE_EDI:
+    case MACHINE_RO:
+    case MACHINE_RO_H:
+    case MACHINE_PURIST: 
+        aIds[iIdx].iDspType    = SET_POINT_FORMAT1;
+        aIds[iIdx].iParamId[0] = MACHINE_PARAM_SP3;
+        iIdx++;
+        break;
+    default:
+        break;
+    }
+    
+    switch(gGlobalParam.iMachineType)/* RO产水温度上限？℃ 下限？℃ */
+    {
+    case MACHINE_UP:
+    case MACHINE_EDI:
+    case MACHINE_RO:
+    case MACHINE_RO_H:
+    case MACHINE_PURIST:
+        aIds[iIdx].iDspType    = SET_POINT_FORMAT2;
+        aIds[iIdx].iParamId[0] = MACHINE_PARAM_SP20;
+        aIds[iIdx].iParamId[1] = MACHINE_PARAM_SP21;
+        iIdx++;
+        break;
+    default:
+        break;
+    }
+    
+    switch(gGlobalParam.iMachineType)/* RO截留率 下限？% */
+    {
+    case MACHINE_UP:
+    case MACHINE_EDI:
+    case MACHINE_RO:
+    case MACHINE_RO_H:
+        aIds[iIdx].iDspType    = SET_POINT_FORMAT1;
+        aIds[iIdx].iParamId[0] = MACHINE_PARAM_SP2;
+        iIdx++;
+        break;
+    default:
+        break;
+    } 
+    
+    switch(gGlobalParam.iMachineType)/* EDI产水下限？MΩ.cm */
+    {
+    case MACHINE_EDI:
+        aIds[iIdx].iDspType    = SET_POINT_FORMAT1;
+        aIds[iIdx].iParamId[0] = MACHINE_PARAM_SP4;
+        iIdx++;
+        break;
+    default:
+        break;
+    } 
+    
+    switch(gGlobalParam.iMachineType)/* EDI产水温度上限？℃ 下限？℃ */
+    {
+    case MACHINE_EDI:
+        aIds[iIdx].iDspType    = SET_POINT_FORMAT2;
+        aIds[iIdx].iParamId[0] = MACHINE_PARAM_SP22;
+        aIds[iIdx].iParamId[1] = MACHINE_PARAM_SP23;
+        iIdx++;
+        break;
+    default:
+        break;
+    }
+    
+    switch(gGlobalParam.iMachineType)/* UP取水下限？MΩ.cm */
+    {
+    case MACHINE_UP:
+    case MACHINE_PURIST:
+        aIds[iIdx].iDspType    = SET_POINT_FORMAT1;
+        aIds[iIdx].iParamId[0] = MACHINE_PARAM_SP7;
+        iIdx++;
+        break;
+    default:
+        break;
+    }
+    
+    switch(gGlobalParam.iMachineType)/* UP产水温度 上限？℃ 下限？℃ */
+    {
+    case MACHINE_UP:
+    case MACHINE_PURIST:
+        aIds[iIdx].iDspType    = SET_POINT_FORMAT2;
+        aIds[iIdx].iParamId[0] = MACHINE_PARAM_SP24;
+        aIds[iIdx].iParamId[1] = MACHINE_PARAM_SP25;
+        iIdx++;
+        break;
+    default:
+        break;
+    }
+    
+    switch(gGlobalParam.iMachineType)/*HP产水水质下限 ? MΩ.cm */
+    {
+    case MACHINE_PURIST:
+        break;
+    default:
+        aIds[iIdx].iDspType    = SET_POINT_FORMAT1;
+        aIds[iIdx].iParamId[0] = MACHINE_PARAM_SP32;
+        iIdx++;
+        break;
+    }
+    
+    switch(gGlobalParam.iMachineType)//水箱水质上限?MΩ.cm 下限?MΩ.cm, 用于判断是否自动开启HP循环
+    {
+    case MACHINE_RO_H:
+        aIds[iIdx].iDspType    = SET_POINT_FORMAT2;
+        aIds[iIdx].iParamId[0] = MACHINE_PARAM_SP10;
+        aIds[iIdx].iParamId[1] = MACHINE_PARAM_SP11;
+        iIdx++;
+        break;
+    default:
+        break;
+    }
+    
+    switch(gGlobalParam.iMachineType)/* TOC传感器温度上限？℃ 下限？℃ */
+    {
+    case MACHINE_UP:
+    case MACHINE_PURIST:
+        aIds[iIdx].iDspType    = SET_POINT_FORMAT2;
+        aIds[iIdx].iParamId[0] = MACHINE_PARAM_SP28;
+        aIds[iIdx].iParamId[1] = MACHINE_PARAM_SP29;
+        iIdx++;
+        break;
+    default:
+        break;
+    }
+    
+    switch(gGlobalParam.iMachineType)/* TOC进水水质下限？MΩ.cm */
+    {
+    case MACHINE_UP:
+    case MACHINE_PURIST:
+        aIds[iIdx].iDspType    = SET_POINT_FORMAT1;
+        aIds[iIdx].iParamId[0] = MACHINE_PARAM_SP30;
+        iIdx++;
+        break;
+    default:
+        break;
+    }
+    
+    switch(gGlobalParam.iMachineType)/*纯水箱液位水箱空？%  恢复注水？%*/
+    {
+    case MACHINE_UP:
+    case MACHINE_EDI:
+    case MACHINE_RO:
+    case MACHINE_RO_H:
+    case MACHINE_PURIST:
+        aIds[iIdx].iDspType    = SET_POINT_FORMAT2;
+        aIds[iIdx].iParamId[0] = MACHINE_PARAM_SP5;
+        aIds[iIdx].iParamId[1] = MACHINE_PARAM_SP6;
+        iIdx++;
+        break;
+    default:
+        break;
+    } 
+    
+    // 20200828: puncture for web system configuration
+    gCConfig.m_SetPointCfgInfo.ulPart1 = 0;
+    gCConfig.m_SetPointCfgInfo.ulPart2 = 0;
+    int iRealNum = iIdx;
+    for (iIdx = 0; iIdx < iRealNum; iIdx++)
+    {
+        switch(aIds[iIdx].iDspType )
+        {
+        case SET_POINT_FORMAT2:
+            if (aIds[iIdx].iParamId[1] < 32)
+            {
+                gCConfig.m_SetPointCfgInfo.ulPart1 |= 1 << aIds[iIdx].iParamId[1];
+            }
+            else
+            {
+                gCConfig.m_SetPointCfgInfo.ulPart2 |= 1 << (aIds[iIdx].iParamId[1] - 32);
+            }
+        case SET_POINT_FORMAT1:
+            if (aIds[iIdx].iParamId[0] < 32)
+            {
+                gCConfig.m_SetPointCfgInfo.ulPart1 |= 1 << aIds[iIdx].iParamId[0];
+            }
+            else
+            {
+                gCConfig.m_SetPointCfgInfo.ulPart2 |= 1 << (aIds[iIdx].iParamId[0] - 32);
+            }
+            break;
+        }
+
+    }
+}
+
+void MainWindow::initSystemCfgInfo()
+{
+    int iIdx = 0;
+    
+    struct CHK_ITEM_TYPE {
+        int iId;
+    }aCHKsIds[32];
+
+
+    aCHKsIds[iIdx].iId = DISP_SM_Printer;
+    iIdx++;
+    
+    switch(gGlobalParam.iMachineType)
+    {
+    case MACHINE_PURIST:
+        break;
+    default:
+        aCHKsIds[iIdx].iId = DISP_SM_Pre_Filter;
+        iIdx++;
+        break;
+    }
+
+    int iRealChkNum = iIdx;
+    
+    // 20200828: puncture for web system configuration
+    gCConfig.m_SystemCfgInfo.ulSubModuleMask = 0;
+    for (iIdx = 0; iIdx < iRealChkNum; iIdx++)
+    {
+        gCConfig.m_SystemCfgInfo.ulSubModuleMask |= 1 << aCHKsIds[iIdx].iId;
+    }
+    
+    switch(gGlobalParam.iMachineType)
+    {
+    case MACHINE_UP:
+    case MACHINE_PURIST:
+        gCConfig.m_SystemCfgInfo.bHaveToc = true;
+        break;
+    default:
+        gCConfig.m_SystemCfgInfo.bHaveToc = false;
+        break;
+    }
+        
+    gCConfig.m_SystemCfgInfo.bHaveFlusher = MACHINE_PURIST != gGlobalParam.iMachineType;
+    gCConfig.m_SystemCfgInfo.bHaveTankUv  = true;
+    gCConfig.m_SystemCfgInfo.bHavePWTank = true;
+    gCConfig.m_SystemCfgInfo.bHaveSWTank = false;
+}
+
 void MainWindow::saveHandler()
 {
 
@@ -7140,59 +6561,12 @@ void MainWindow::updRfReader(int iMask,DB_RFID_STRU *hdls)
     saveRfid();
 }
 
-
-void MainWindow::on_Gif_State_Change()
-{
-    if (m_pMovieGif->currentFrameNumber() == (m_pMovieGif->frameCount() - 1))
-    {
-        mainDisplay();
-    }
-}
-    
-    
-void MainWindow::Splash()
-{
-    m_pLabelGif = new QLabel(mainWidget);
-    m_pLabelGif->setGeometry(QRect(0, 0, 800, 600));
-
-    m_pMovieGif = new QMovie(":/pic/LOGO.gif");
-
-    m_pLabelGif->setMovie(m_pMovieGif);
-    
-    m_pMovieGif->start();
-
-    m_pLabelGif->show();
-
-    m_bSplash = true;
-
-    if (m_pMovieGif->frameCount() < 0)
-    {
-        mainDisplay();
-    }
-    else
-    {
-       connect(m_pMovieGif,SIGNAL(frameChanged(int)),this,SLOT(on_Gif_State_Change()));
-    }
-}
-
 MainWindow::~MainWindow()
 {
 #ifdef D_HTTPWORK
     m_workerThread.quit();
     m_workerThread.wait();
 #endif
-
-}
-
-void MainWindow::mousePressEvent(QMouseEvent *e)
-{   
-    (void)e;
-    if (!m_bLoged)
-    {
-        emit autoLogin();
-
-        qDebug("autoLogin \r\n");
-    }
 
 }
 
@@ -7292,6 +6666,69 @@ void MainWindow::checkTubeCir()
 
 }
 
+void MainWindow::checkRFIDErrorAlarm()
+{
+    int iRet = getActiveRfidBrds();
+    if (iRet <= 0)
+    {
+        switch(-iRet)
+        {
+        case (DISP_PRE_PACK | 0xFF00):
+            alarmCommProc(true,DISP_ALARM_PART0,DISP_ALARM_PART0_PREPACK_OOP);
+            break;
+        case (DISP_AC_PACK | 0xFF00):
+            alarmCommProc(true,DISP_ALARM_PART0,DISP_ALARM_PART0_ACPACK_OOP);
+            break;
+        case (DISP_P_PACK | 0xFF00):
+            alarmCommProc(true,DISP_ALARM_PART0,DISP_ALARM_PART0_PPACK_OOP);
+            break;
+        case (DISP_U_PACK | 0xFF00):
+            alarmCommProc(true,DISP_ALARM_PART0,DISP_ALARM_PART0_UPACK_OOP);
+            break;
+        case (DISP_AT_PACK | 0xFF00):
+            alarmCommProc(true,DISP_ALARM_PART0,DISP_ALARM_PART0_ATPACK_OOP);
+            break;
+        case (DISP_H_PACK | 0xFF00):
+            alarmCommProc(true,DISP_ALARM_PART0,DISP_ALARM_PART0_HPACK_OOP);
+            break;
+       }
+    }
+    else
+    {
+        if (m_aiAlarmRcdMask[0][DISP_ALARM_PART0] & DISP_MAKE_ALARM(DISP_ALARM_PART0_PPACK_OOP))
+        {
+            alarmCommProc(false,DISP_ALARM_PART0,DISP_ALARM_PART0_PPACK_OOP);
+        }
+
+        if (m_aiAlarmRcdMask[0][DISP_ALARM_PART0] & DISP_MAKE_ALARM(DISP_ALARM_PART0_PREPACK_OOP))
+        {
+            alarmCommProc(false,DISP_ALARM_PART0,DISP_ALARM_PART0_PREPACK_OOP);
+        }
+
+        if (m_aiAlarmRcdMask[0][DISP_ALARM_PART0] & DISP_MAKE_ALARM(DISP_ALARM_PART0_ACPACK_OOP))
+        {
+            alarmCommProc(false,DISP_ALARM_PART0,DISP_ALARM_PART0_ACPACK_OOP);
+        }
+
+        if (m_aiAlarmRcdMask[0][DISP_ALARM_PART0] & DISP_MAKE_ALARM(DISP_ALARM_PART0_UPACK_OOP))
+        {
+            alarmCommProc(false,DISP_ALARM_PART0,DISP_ALARM_PART0_UPACK_OOP);
+        }
+
+        if (m_aiAlarmRcdMask[0][DISP_ALARM_PART0] & DISP_MAKE_ALARM(DISP_ALARM_PART0_ATPACK_OOP))
+        {
+            alarmCommProc(false,DISP_ALARM_PART0,DISP_ALARM_PART0_ATPACK_OOP);
+        }
+
+        if (m_aiAlarmRcdMask[0][DISP_ALARM_PART0] & DISP_MAKE_ALARM(DISP_ALARM_PART0_HPACK_OOP))
+        {
+            alarmCommProc(false,DISP_ALARM_PART0,DISP_ALARM_PART0_HPACK_OOP);
+        }
+    }
+
+}
+
+
 void MainWindow::on_timerEvent()
 {
     unsigned int  savedUsageState = gCMUsage.ulUsageState;
@@ -7303,18 +6740,13 @@ void MainWindow::on_timerEvent()
     //More than 1 hour, start cir;
     switch(gGlobalParam.iMachineType)
     {
-    case MACHINE_L_Genie:
-    case MACHINE_L_UP:
-    case MACHINE_Genie:
     case MACHINE_UP:
     case MACHINE_PURIST:
-    case MACHINE_ADAPT:
         autoCirPreHour(); //More than 1 hour, start cir;
         break;
-    case MACHINE_L_EDI_LOOP:
-    case MACHINE_L_RO_LOOP:
     case MACHINE_EDI:
     case MACHINE_RO:
+    case MACHINE_RO_H:
         break;
     default:
         break;
@@ -7342,13 +6774,6 @@ void MainWindow::on_timerEvent()
     if (savedUsageState != gCMUsage.ulUsageState)
     {
         int iType = getAlarmState();
-
-        if (typeid(*m_pCurPage) == typeid(MainPage))  
-        {
-            MainPage *page = (MainPage *)m_pCurPage;
-        
-            page->updAlarmState(iType);
-        }
         
         if (m_iNotState != iType)
         {
@@ -7410,16 +6835,16 @@ void MainWindow::on_timerSecondEvent()
                         case DISP_H_PACK:
                             alarmCommProc(true,DISP_ALARM_PART0,DISP_ALARM_PART0_HPACK_OOP);
                             break;
-                            
                         }
-                    }
+                   }
                 }
             }
         }
     }
+
+    checkRFIDErrorAlarm();
     
     /* faked flow report */
-    if (!m_bSplash)
     {
         int iDelta;
   
@@ -7464,17 +6889,6 @@ void MainWindow::on_timerSecondEvent()
     }
 }
 
-void MainWindow::on_timerScreenSleepEvent()
-{
-    gScreenSleepTimer++;
-
-    if(gScreenSleepTimer == gAdditionalCfgParam.additionalParam.iScreenSleepTime * 6)
-    {
-        on_ScreenSleep(true);
-    }
-}
-
-
 void Hex2String(QString &str,uint8 *pHexIn,int HexInLen)
 {
     int iLoop;
@@ -7507,17 +6921,7 @@ void MainWindow::AfDataMsg(IAP_NOTIFY_STRU *pIapNotify)
             {
             case APP_PACKET_HO_ADR_SET:
                 {
-                    /*
-                    if (gAdditionalCfgParam.initMachine == 0)
-                    {
-                        DInitHandleCfgpage* ex_Page = getExInitPage();
-                        if(ex_Page) ex_Page->cfgHandlerRsp();
-                    }
-                    else
-                    {
-                        SetDevicePage *page = getDeviceDlg();
-                        if (page) page->cfgHandlerRsp();
-                    }*/
+
                 }                
                 break;
             case APP_PACKET_HO_ADR_QRY:
@@ -7537,21 +6941,7 @@ void MainWindow::AfDataMsg(IAP_NOTIFY_STRU *pIapNotify)
 
                     iAddress = (pmg->aucData[offset] << 8) | (pmg->aucData[offset+1] << 0);
                     QString strAddress = QString::number(iAddress);
-                    offset += 2;
-
-#ifdef LOCAL_UI
-                    if (gAdditionalCfgParam.initMachine == 0)
-                    {
-                        DInitHandleCfgpage* ex_Page = getExInitPage();
-                        if(ex_Page)
-                            ex_Page->addHandler(1,strSn,strAddress);
-                    }
-                    else
-                    {
-                        SetDevicePage *page = getDeviceDlg();
-                        if (page) page->addHandler(1,strSn,strAddress);
-                    }
-#endif                    
+                    offset += 2;                 
                 }
                 break;
             }        
@@ -7577,11 +6967,6 @@ void MainWindow::AfDataMsg(IAP_NOTIFY_STRU *pIapNotify)
 
                     iAddress = (pmg->aucData[offset] << 8) | (pmg->aucData[offset+1] << 0);
                     QString strAddress = QString::number(iAddress);
-
-                    {
-                        SetDevicePage *page = getDeviceDlg();
-                        if (page) page->addRfReader(strSn,strAddress); 
-                    }
 
                     qDebug() << "sn: " << strSn << "adr: " << strAddress;
                     
@@ -7615,20 +7000,7 @@ void MainWindow::zigbeeDataMsg(IAP_NOTIFY_STRU *pIapNotify)
             switch(pmg->ucOpsType)
             {
             case APP_PACKET_HO_ADR_SET:
-                {
-                    /*
-                    if (gAdditionalCfgParam.initMachine == 0)
-                    {
-                        DInitHandleCfgpage* ex_Page = getExInitPage();
-                        if(ex_Page) ex_Page->cfgHandlerRsp();
-                    }
-                    else
-                    {
-                        SetDevicePage *page = getDeviceDlg();
-                        if (page) page->cfgHandlerRsp();
-                    }
-                    */
-                }                
+
                 break;
             case APP_PACKET_HO_ADR_QRY:
                 {
@@ -7647,21 +7019,7 @@ void MainWindow::zigbeeDataMsg(IAP_NOTIFY_STRU *pIapNotify)
 
                     iAddress = (pmg->aucData[offset] << 8) | (pmg->aucData[offset+1] << 0);
                     QString strAddress = QString::number(iAddress);
-                    offset += 2;
-
-#ifdef LOCAL_UI
-                    if (gAdditionalCfgParam.initMachine == 0)
-                    {
-                        DInitHandleCfgpage* ex_Page = getExInitPage();
-                        if(ex_Page)
-                            ex_Page->addHandler(1,strSn,strAddress);
-                    }
-                    else
-                    {
-                        SetDevicePage *page = getDeviceDlg();
-                        if (page) page->addHandler(1,strSn,strAddress);
-                    }
-#endif                    
+                    offset += 2;                  
                 }
                 break;
             }        
@@ -7676,7 +7034,7 @@ void MainWindow::zigbeeDataMsg(IAP_NOTIFY_STRU *pIapNotify)
 
 void MainWindow::on_IapIndication(IAP_NOTIFY_STRU *pIapNotify)
 {
-    qDebug("in iap \n");
+    //qDebug("in iap \n");
 
     if (APP_TRX_CAN == pIapNotify->iTrxIndex)
     {
@@ -7685,7 +7043,6 @@ void MainWindow::on_IapIndication(IAP_NOTIFY_STRU *pIapNotify)
         case RPC_SYS_BOOT:
             if (pIapNotify->data[1 + RPC_POS_CMD1] & SAPP_RSP_MASK)
             {
-            
                 // handle response
                 switch(pIapNotify->data[1 + RPC_POS_CMD1] & (~SAPP_RSP_MASK))
                 {
@@ -7711,12 +7068,7 @@ void MainWindow::on_IapIndication(IAP_NOTIFY_STRU *pIapNotify)
                             QString strElecId;
     
                             Hex2String(strElecId,deviceid,deviceidLen);
-#ifdef LOCAL_UI    
-                            {
-                                SetDevicePage *page = getDeviceDlg();
-                                if (page) page->addDevice(strElecId,strAddress,strDevType);
-                            }
-#else
+
                             // wakeup http
                             {
                                 DeviceInfo di;
@@ -7725,7 +7077,6 @@ void MainWindow::on_IapIndication(IAP_NOTIFY_STRU *pIapNotify)
                                 di.usAddr    = usaddress;
                                 m_DevMap.insert(strElecId,di);
                             }
-#endif
                         }
     
                     }
@@ -7747,15 +7098,6 @@ void MainWindow::on_IapIndication(IAP_NOTIFY_STRU *pIapNotify)
                             QString strInfo = atrsp;
     
                             QString strAdr = QString::number(CAN_SRC_ADDRESS(pIapNotify->ulCanId));
-
-#ifdef LOCAL_UI    
-                            {
-                                SetDevicePage *page = getDeviceDlg();
-                                if (page) page->deviceVersion(strAdr,strInfo);
-                            }
-#else
-                            // wakeup http
-#endif
                          }
                     }
                     break;
@@ -7860,6 +7202,7 @@ bool alarmHaveAssociatedModule(int iAlarmPart,int iAlarmId)
         case DISP_ALARM_PART1_HIGHER_TOC_SENSOR_TEMPERATURE:
         case DISP_ALARM_PART1_LOWER_TOC_SENSOR_TEMPERATURE:
         case DISP_ALARM_PART1_LOWER_TOC_SOURCE_WATER_RESISTENCE:
+        case DISP_ALARM_PART1_HIGHER_TOC:
             if (!(gGlobalParam.SubModSetting.ulFlags & (1 << DISP_SM_HaveTOC )))
             {
                 bDevice = false ;
@@ -7981,20 +7324,6 @@ void MainWindow::alarmCommProc(bool bAlarm,int iAlarmPart,int iAlarmId)
     {
         int iType = getAlarmState();
         
-        if (m_pCurPage && (typeid(*m_pCurPage) == typeid(MainPage)))
-        {
-             MainPage *page = (MainPage *)m_pCurPage;
-             
-             page->updAlarmState(iType);
-        }
-
-        if (m_pCurPage && (typeid(*m_pCurPage) == typeid(AlarmDisplayPage)))
-        {
-             AlarmDisplayPage *page = (AlarmDisplayPage *)m_pCurPage;
-             
-             page->update();
-        }
-
         if (m_iNotState != iType)
         {
             m_iNotState = iType;
@@ -8162,11 +7491,9 @@ void MainWindow::doSubAccountWork(double value, int iType)
 
         switch(iType)
         {
-        //UP
         case APP_DEV_HS_SUB_UP:
             upValue += value;
             break;
-        //HP
         case APP_DEV_HS_SUB_HP:
             hpValue += value;
             break;
@@ -8222,38 +7549,22 @@ void MainWindow::initMachineName()
 
 void MainWindow::initMachineNameRephile()
 {
-    unsigned int iMachineFlow = gAdditionalCfgParam.machineInfo.iMachineFlow;
     switch(gGlobalParam.iMachineType)
     {
-    case MACHINE_L_Genie:
-        m_strMachineName = QString("Super Genie G") + tr(" %1").arg(iMachineFlow);
-        break;
-    case MACHINE_L_UP:
-        m_strMachineName = QString("Super Genie U") + tr(" %1").arg(iMachineFlow);
-        break;
-    case MACHINE_L_EDI_LOOP:
-        m_strMachineName = QString("Super Genie E") + tr(" %1").arg(iMachineFlow);
-        break;
-    case MACHINE_L_RO_LOOP:
-        m_strMachineName = QString("Super Genie R") + tr(" %1").arg(iMachineFlow);
-        break;
-    case MACHINE_Genie:
-        m_strMachineName = QString("Genie G") + tr(" %1").arg(iMachineFlow);
-        break;
     case MACHINE_UP:
-        m_strMachineName = QString("Genie U") + tr(" %1").arg(iMachineFlow);
+        m_strMachineName = QString("NuZar U") + tr(" %1").arg(gAdditionalCfgParam.machineInfo.iMachineFlow);
         break;
     case MACHINE_EDI:
-        m_strMachineName = QString("Genie E") + tr(" %1").arg(iMachineFlow);
+        m_strMachineName = QString("NuZar E") + tr(" %1").arg(gAdditionalCfgParam.machineInfo.iMachineFlow);
         break;
     case MACHINE_RO:
-        m_strMachineName = QString("Genie R") + tr(" %1").arg(iMachineFlow);
+        m_strMachineName = QString("NuZar R") + tr(" %1").arg(gAdditionalCfgParam.machineInfo.iMachineFlow);
+        break;
+    case MACHINE_RO_H:
+        m_strMachineName = QString("NuZar H") + tr(" %1").arg(gAdditionalCfgParam.machineInfo.iMachineFlow);
         break;
     case MACHINE_PURIST:
-        m_strMachineName = QString("Genie PURIST");
-        break;
-    case MACHINE_ADAPT:
-        m_strMachineName = QString("Genie A") + tr(" %1").arg(iMachineFlow);
+        m_strMachineName = QString("NuZar Q");
         break;
     default:
         m_strMachineName = QString("unknow");
@@ -8263,49 +7574,27 @@ void MainWindow::initMachineNameRephile()
 
 void MainWindow::initMachineNameVWR()
 {
-    unsigned int iMachineFlow = gAdditionalCfgParam.machineInfo.iMachineFlow;
     switch(gGlobalParam.iMachineType)
-    {
-    case MACHINE_L_Genie:
-        m_strMachineName = QString("Super Genie G ") + tr(" %1").arg(iMachineFlow);
-        break;
-    case MACHINE_L_UP:
-        m_strMachineName = QString("Super Genie U") + tr(" %1").arg(iMachineFlow);
-        break;
-    case MACHINE_L_EDI_LOOP:
-        m_strMachineName = QString("Super Genie E") + tr(" %1").arg(iMachineFlow);
-        break;
-    case MACHINE_L_RO_LOOP:
-        m_strMachineName = QString("Super Genie R") + tr(" %1").arg(iMachineFlow);
-        break;
-    case MACHINE_Genie:
-        m_strMachineName = QString("VWR G") + tr(" %1").arg(iMachineFlow);
-        break;
+    {;
     case MACHINE_UP:
-        m_strMachineName = QString("VWR U") + tr(" %1").arg(iMachineFlow);
+        m_strMachineName = QString("VWR U") + tr(" %1").arg(gAdditionalCfgParam.machineInfo.iMachineFlow);
         break;
     case MACHINE_EDI:
-        m_strMachineName = QString("VWR E") + tr(" %1").arg(iMachineFlow);
+        m_strMachineName = QString("VWR E") + tr(" %1").arg(gAdditionalCfgParam.machineInfo.iMachineFlow);
         break;
     case MACHINE_RO:
-        m_strMachineName = QString("VWR R") + tr(" %1").arg(iMachineFlow);
+        m_strMachineName = QString("VWR R") + tr(" %1").arg(gAdditionalCfgParam.machineInfo.iMachineFlow);
+        break;
+    case MACHINE_RO_H:
+        m_strMachineName = QString("VWR H") + tr(" %1").arg(gAdditionalCfgParam.machineInfo.iMachineFlow);
         break;
     case MACHINE_PURIST:
         m_strMachineName = QString("VWR P");
-        break;
-    case MACHINE_ADAPT:
-        m_strMachineName = QString("VWR A") + tr(" %1").arg(iMachineFlow);
         break;
     default:
         m_strMachineName = QString("unknow");
         break;
     }
-}
-
-void MainWindow::showWifiConfigDlg(const QString& name)
-{
-    m_pWifiConfigDlg->setSSIDName(name);
-    m_pWifiConfigDlg->show();
 }
 
 #ifdef D_HTTPWORK
@@ -8901,13 +8190,6 @@ void MainWindow::on_updateText(const QByteArray& array)
 }
 #endif
 
-void MainWindow::initScreenSleep()
-{
-    m_screenSleepTimer = new QTimer(this);
-    connect(m_screenSleepTimer, SIGNAL(timeout()), this, SLOT(on_timerScreenSleepEvent()));
-    m_screenSleepTimer->start(1000*10);
-}
-
 void MainWindow::autoCirPreHour()
 {
     if(ex_gulSecond - gEx_Ccb.Ex_Auto_Cir_Tick.ulUPAutoCirTick > 60*60) //More than 1 hour, start cir;
@@ -8926,9 +8208,6 @@ int MainWindow::idForHPGetWHistory()
     int num;
     switch(gGlobalParam.iMachineType)
     {
-    case MACHINE_L_Genie:
-    case MACHINE_L_EDI_LOOP:
-    case MACHINE_Genie:
     case MACHINE_EDI:
     {
         if(gGlobalParam.MiscParam.ulMisFlags & (1 << DISP_SM_HP_Water_Cir))
@@ -8941,10 +8220,9 @@ int MainWindow::idForHPGetWHistory()
         }
         break;
     }
-    case MACHINE_L_UP:
-    case MACHINE_L_RO_LOOP:
     case MACHINE_UP:
     case MACHINE_RO:
+    case MACHINE_RO_H:
     {
         if(gGlobalParam.MiscParam.ulMisFlags & (1 << DISP_SM_HP_Water_Cir))
         {
@@ -8956,33 +8234,12 @@ int MainWindow::idForHPGetWHistory()
         }
         break;
     }
-    case MACHINE_ADAPT:
-        num = APP_EXE_I2_NO;
-        break;
     default:
         num = APP_EXE_I4_NO;
         break;
     }
 
     return num;
-}
-
-void MainWindow::on_ScreenSleep(bool sleep)
-{
-    if(sleep && (gScreenSleepTimer != 0) && (!gScreenSleeping) && gGlobalParam.MiscParam.iEnerySave)
-    {
-
-        gScreenSleeping = true;
-//        int value = 10;
-//        Write_sys_int(PWMLCD_FILE, value);
-
-        m_pPreviousPage = m_pCurPage;
-        m_pCurPage->show(false);
-
-        m_pScreenSleepPage->show(true);
-        emit SleepPageShow(true);
-    }
-
 }
 
 void MainWindow::on_dispIndication(unsigned char *pucData,int iLength)
@@ -8994,8 +8251,6 @@ void MainWindow::on_dispIndication(unsigned char *pucData,int iLength)
     bool bDbResult = false;
     //static int iSeq1 = 0;
     //static int iSeq2 = 0;
-
-    MainPage *pMainPage = (MainPage *)m_pSubPages[PAGE_MAIN];
 
     //qDebug("in Ind %d %d\r\n" ,++iSeq1,iSeq2);
     
@@ -9125,7 +8380,9 @@ void MainWindow::on_dispIndication(unsigned char *pucData,int iLength)
                                 alarmCommProc(false,DISP_ALARM_PART1,DISP_ALARM_PART1_LOWER_EDI_PRODUCT_TEMPERATURE);
                             }
                         }
-                        if((gGlobalParam.iMachineType == MACHINE_UP) || (gGlobalParam.iMachineType == MACHINE_RO))
+                        if((gGlobalParam.iMachineType == MACHINE_UP) 
+                            || (gGlobalParam.iMachineType == MACHINE_RO)
+                            || (gGlobalParam.iMachineType == MACHINE_RO_H))
                         {
                             if(gGlobalParam.MiscParam.ulMisFlags & (1 << DISP_SM_HP_Water_Cir))
                             {
@@ -9197,7 +8454,7 @@ void MainWindow::on_dispIndication(unsigned char *pucData,int iLength)
                             }
                         } 
                         else if (m_pCcb->DispGetEdiQtwFlag()
-                                 && ((gGlobalParam.iMachineType != MACHINE_UP) &&(gGlobalParam.iMachineType != MACHINE_RO)))
+                                 && ((gGlobalParam.iMachineType != MACHINE_UP) &&(gGlobalParam.iMachineType != MACHINE_RO)&&(gGlobalParam.iMachineType != MACHINE_RO_H)))
                         {
                             if (m_EcoInfo[pItem->ucId].fQuality < gGlobalParam.MMParam.SP[MACHINE_PARAM_SP32])
                             {
@@ -9211,7 +8468,7 @@ void MainWindow::on_dispIndication(unsigned char *pucData,int iLength)
                                  
                         else if (m_pCcb->DispGetTankCirFlag()
                                  && (getMachineNotifyMask(gGlobalParam.iMachineType,0) & (1 << DISP_T_PACK))
-                                 && ((gGlobalParam.iMachineType != MACHINE_UP) &&(gGlobalParam.iMachineType != MACHINE_RO)))
+                                 && ((gGlobalParam.iMachineType != MACHINE_UP) &&(gGlobalParam.iMachineType != MACHINE_RO)&&(gGlobalParam.iMachineType != MACHINE_RO_H)))
                         {
                             //??????????????T Pack
                             if (m_EcoInfo[pItem->ucId].fQuality < gGlobalParam.MMParam.SP[MACHINE_PARAM_SP31])
@@ -9379,7 +8636,7 @@ void MainWindow::on_dispIndication(unsigned char *pucData,int iLength)
                         }
                     }
                     
-                    if (!m_bSplash) updPressure(pItem->ucId);
+                    updPressure(pItem->ucId);
                     
                 }
                 pItem++;
@@ -9393,15 +8650,8 @@ void MainWindow::on_dispIndication(unsigned char *pucData,int iLength)
             m_fPressure[APP_EXE_PM1_NO] = m_pCcb->CcbConvert2Pm1Data(pItem->ulValue);
             
             m_fSourceWaterPressure = m_fPressure[APP_EXE_PM1_NO];
-
-            if (NULL != m_pSubPages[PAGE_MENU])
-            {
-                MenuPage *page = (MenuPage *)m_pSubPages[PAGE_MENU];
+            m_pRecordParams->updSwPressure(m_fPressure[APP_EXE_PM1_NO]);
             
-               // WaterQualityPage *subpage = (WaterQualityPage *)page->getSubPage(MENU_BTN_WATER_QUALITY_PARAMETER);
-                DWaterQualityPage *subpage = (DWaterQualityPage *)page->getSubPage(MENU_BTN_WATER_QUALITY_PARAMETER);
-                subpage->updSwPressure(m_fPressure[APP_EXE_PM1_NO]);
-            }
 #ifdef D_HTTPWORK
             m_uploadNetData.m_otherInfo.fFeedPressure = m_fPressure[APP_EXE_PM1_NO];
 #endif
@@ -9468,24 +8718,6 @@ void MainWindow::on_dispIndication(unsigned char *pucData,int iLength)
                     m_fRectifier[pItem->ucId] = m_pCcb->CcbConvert2RectAndEdiData(pItem->ulValue);
            
                     //alarmCommProc(bAlarm,iAlarmId);
-
-                    if (typeid(*m_pCurPage) == typeid(SysTestPage))
-                    {
-                        SysTestPage *page = (SysTestPage *)m_pCurPage;
-                        page->updateInfo(pNotify->Hdr.ucCode,pItem->ucId,m_fRectifier[pItem->ucId]);
-                    }
-                    else if (typeid(*m_pCurPage) == typeid(SystemMonitorPage))
-                    {
-                        SystemMonitorPage *page = (SystemMonitorPage *)m_pCurPage;
-                        page->updateRectInfo(pItem->ucId);
-                    }
-#ifdef FLOWCHART
-                    else if (typeid(*m_pCurPage) == typeid(DFlowChartPage))
-                    {
-                        DFlowChartPage *page = (DFlowChartPage *)m_pCurPage;
-                        page->updateRectInfo(pItem->ucId);
-                    }
-#endif
                 }
                 pItem++;
             }
@@ -9503,25 +8735,6 @@ void MainWindow::on_dispIndication(unsigned char *pucData,int iLength)
                      //m_pEditGPump[pItem->ucId]->setText(QString::number(CcbConvert2GPumpData(pItem->ulValue)));
 
                      m_fPumpV[pItem->ucId] = m_pCcb->CcbConvert2GPumpData(pItem->ulValue);
-
-                    if (typeid(*m_pCurPage) == typeid(SysTestPage))
-                    {
-                        SysTestPage *page = (SysTestPage *)m_pCurPage;
-                    
-                        page->updateInfo(pNotify->Hdr.ucCode, pItem->ucId,m_fPumpV[pItem->ucId]);
-                    }
-                    else if (typeid(*m_pCurPage) == typeid(SystemMonitorPage))
-                    {
-                        SystemMonitorPage *page = (SystemMonitorPage *)m_pCurPage;
-                        page->updateGpumpInfo(pItem->ucId);
-                    }
-#ifdef FLOWCHART
-                    else if (typeid(*m_pCurPage) == typeid(DFlowChartPage))
-                    {
-                        DFlowChartPage *page = (DFlowChartPage *)m_pCurPage;
-                        page->updateGpumpInfo(pItem->ucId);
-                    }
-#endif
                  }
                 pItem++;
             }
@@ -9539,28 +8752,6 @@ void MainWindow::on_dispIndication(unsigned char *pucData,int iLength)
 
                      m_fRPumpI[pItem->ucId] = m_pCcb->CcbConvert2RPumpIData(pItem->ulValue);
 
-                     if (typeid(*m_pCurPage) == typeid(SysTestPage))
-                     {
-                         SysTestPage *page = (SysTestPage *)m_pCurPage;
-                         
-                         page->updateInfo(pNotify->Hdr.ucCode,(1<<8) | pItem->ucId,m_fRPumpV[pItem->ucId]);
-
-                         page->updateInfo(pNotify->Hdr.ucCode, pItem->ucId,m_fRPumpI[pItem->ucId]);
-                     }
-                     else if (typeid(*m_pCurPage) == typeid(SystemMonitorPage))
-                     {
-                         SystemMonitorPage *page = (SystemMonitorPage *)m_pCurPage;
-                         
-                         page->updateRpumpInfo(pItem->ucId);
-                     }  
-#ifdef FLOWCHART
-                     else if (typeid(*m_pCurPage) == typeid(DFlowChartPage))
-                     {
-                         DFlowChartPage *page = (DFlowChartPage *)m_pCurPage;
-
-                         page->updateRpumpInfo(pItem->ucId);
-                     }
-#endif
                      qDebug("DISP_NOT_RPUMP %d\r\n",pItem->ucId);
                  }
                 pItem++;
@@ -9581,24 +8772,6 @@ void MainWindow::on_dispIndication(unsigned char *pucData,int iLength)
                      
                      m_fEDI[pItem->ucId] = m_pCcb->CcbConvert2RectAndEdiData(pItem->ulValue);
 
-                     if (typeid(*m_pCurPage) == typeid(SysTestPage))
-                     {
-                         SysTestPage *page = (SysTestPage *)m_pCurPage;
-                         
-                         page->updateInfo(pNotify->Hdr.ucCode,pItem->ucId,m_fEDI[pItem->ucId]);
-                     }
-                     else if (typeid(*m_pCurPage) == typeid(SystemMonitorPage))
-                     {
-                         SystemMonitorPage *page = (SystemMonitorPage *)m_pCurPage;
-                         page->updateEdiInfo(pItem->ucId);
-                     }  
-#ifdef FLOWCHART
-                     else if (typeid(*m_pCurPage) == typeid(DFlowChartPage))
-                     {
-                         DFlowChartPage *page = (DFlowChartPage *)m_pCurPage;
-                         page->updateEdiInfo(pItem->ucId);
-                     }
-#endif
                      //alarmCommProc(bAlarm,iAlarmId);
 
                  }
@@ -9661,51 +8834,6 @@ void MainWindow::on_dispIndication(unsigned char *pucData,int iLength)
                  case APP_FM_FM1_NO:
                      ulQuantity = m_pCcb->CcbConvert2Fm1Data(pItem->ulValue);
                      break;
-                 case APP_FM_FM2_NO:
-                     break;
-                 case APP_FM_FM3_NO:
-                 {
-                     ulQuantity = m_pCcb->CcbConvert2Fm3Data(pItem->ulValue);
-
-                     switch(gGlobalParam.iMachineType)
-                     {
-                     case MACHINE_L_Genie:
-                     case MACHINE_L_UP:
-                     case MACHINE_L_EDI_LOOP:
-                     case MACHINE_L_RO_LOOP:
-                     {
-                         gCMUsage.cmInfo.aulCumulatedData[DISP_P_PACKLIFEL] += ulQuantity;
-                         gCMUsage.cmInfo.aulCumulatedData[DISP_AC_PACKLIFEL] += ulQuantity;
-                         gCMUsage.cmInfo.aulCumulatedData[DISP_AT_PACKLIFEL] += ulQuantity;
-//                         gCMUsage.cmInfo.aulCumulatedData[DISP_PRE_PACKLIFEL] += ulQuantity;
-                     }
-                         break;
-                     default:
-                         break;
-                     }
-                 }
-                     break;
-                 case APP_FM_FM4_NO:
-                 {
-                     ulQuantity = m_pCcb->CcbConvert2Fm4Data(pItem->ulValue);
-
-                     switch(gGlobalParam.iMachineType)
-                     {
-                     case MACHINE_L_Genie:
-                     case MACHINE_L_UP:
-                     case MACHINE_L_EDI_LOOP:
-                     case MACHINE_L_RO_LOOP:
-                     {
-                         gCMUsage.cmInfo.aulCumulatedData[DISP_P_PACKLIFEL] += ulQuantity;
-                         gCMUsage.cmInfo.aulCumulatedData[DISP_AC_PACKLIFEL] += ulQuantity;
-//                         gCMUsage.cmInfo.aulCumulatedData[DISP_PRE_PACKLIFEL] += ulQuantity;
-                     }
-                         break;
-                     default:
-                         break;
-                     }
-                 }
-                     break;
                  default:
                      break;
                  }
@@ -9719,14 +8847,14 @@ void MainWindow::on_dispIndication(unsigned char *pucData,int iLength)
             NOT_NVS_ITEM_STRU *pItem = (NOT_NVS_ITEM_STRU *)pNotify->aucData;
             while(pItem->ucId != 0XFF)
             {
-                time_t timer      = pItem->ulBgnTime;
-                struct tm *tblock = localtime(&timer);
-                QString strTime;
+                //time_t timer      = pItem->ulBgnTime;
+                //struct tm *tblock = localtime(&timer);
+                //unsigned int   ulQuantity = m_pCcb->CcbConvert2Fm1Data(pItem->ulValue);  
+                //float          fQuantity  = ulQuantity/ 1000.0;
 
-                strTime.sprintf("%04d-%02d-%02d %02d:%02d:%02d",tblock->tm_year + 1900,tblock->tm_mon + 1,tblock->tm_mday,tblock->tm_hour,tblock->tm_min,tblock->tm_sec);
-
-                unsigned int   ulQuantity = m_pCcb->CcbConvert2Fm1Data(pItem->ulValue);  
-                float          fQuantity  = ulQuantity/ 1000.0;
+                QString strTime = QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss");
+                float fQuantity = gGlobalParam.Caliparam.pc[ DISP_PC_COFF_S1].fk * ((pItem->ulEndTime - pItem->ulBgnTime)/60);
+                unsigned int ulQuantity = fQuantity * 1000;
             
                 switch(pItem->ucType)
                 {
@@ -9825,11 +8953,9 @@ void MainWindow::on_dispIndication(unsigned char *pucData,int iLength)
             {
                 time_t timer = pItem->ulBgnTime;
                 time_t etime = time(NULL);
-                struct tm *tblock = localtime(&timer);
                 unsigned int ulDelSec = etime - timer;
-                QString strTime;
-
-                strTime.sprintf("%04d-%02d-%02d %02d:%02d:%02d",tblock->tm_year + 1900,tblock->tm_mon + 1,tblock->tm_mday,tblock->tm_hour,tblock->tm_min,tblock->tm_sec);
+                
+                QString strTime = QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss");;
             
                 {
                     double res = 0;
@@ -9896,29 +9022,8 @@ void MainWindow::on_dispIndication(unsigned char *pucData,int iLength)
                      }
                  }
                 pItem++;
-            }
-            
-            qDebug() <<"DISP_NOT_PWVOLUME_STAT : " << endl;
-
-//            updatePackFlow(); //ex 2018.10.26
-            
-            if (typeid(*m_pCurPage) == typeid(SystemMonitorPage))
-            {
-                SystemMonitorPage *page = (SystemMonitorPage *)m_pCurPage;
-                page->updateWorkState();
-            }
-#ifdef FLOWCHART
-            if (typeid(*m_pCurPage) == typeid(DFlowChartPage))
-            {
-                DFlowChartPage *page = (DFlowChartPage *)m_pCurPage;
-                page->updateWorkState();
-            }
-#endif
-            if (typeid(*m_pCurPage) == typeid(MainPage))
-            {
-                pMainPage->updMainpageState();
-            }
-            
+            }       
+            qDebug() <<"DISP_NOT_PWVOLUME_STAT : " << endl;  
         }
         break;          
     case DISP_NOT_STATE:
@@ -9934,13 +9039,6 @@ void MainWindow::on_dispIndication(unsigned char *pucData,int iLength)
                     //2019.6.3
                     gAdditionalCfgParam.lastRunState = 0;
                     MainSaveLastRunState(gGlobalParam.iMachineType);
-
-
-                    if (NULL != m_pSubPages[PAGE_MAIN])
-                    {
-                        MainPage *page = (MainPage *)m_pSubPages[PAGE_MAIN];
-                        page->updateRunInfo(false);
-                    }
                 }
                 break;
             case NOT_STATE_RUN:
@@ -9950,22 +9048,11 @@ void MainWindow::on_dispIndication(unsigned char *pucData,int iLength)
                     //2019.6.3
                     gAdditionalCfgParam.lastRunState = 1;
                     MainSaveLastRunState(gGlobalParam.iMachineType);
-
-                    if (NULL != m_pSubPages[PAGE_MAIN])
-                    {
-                        MainPage *page = (MainPage *)m_pSubPages[PAGE_MAIN];
-                        page->updateRunInfo(true);
-                    }
-                    
                 }
                 break;
             case NOT_STATE_LPP:
                 {
                     qDebug("on_dispIndication:DISP_NOT_STATE NOT_STATE_LPP \n");
-                    if (typeid(*m_pCurPage) == typeid(MainPage))
-                    {
-                        //pMainPage->updateRunInfo(false);
-                    }
                 }
                 break;
             case NOT_STATE_QTW:
@@ -9978,26 +9065,6 @@ void MainWindow::on_dispIndication(unsigned char *pucData,int iLength)
                 qDebug("on_dispIndication:DISP_NOT_STATE NOT_STATE_DEC \n");
                 break;
             }
-
-//            updatePackFlow(); //ex 2018.10.26
-            
-            if (typeid(*m_pCurPage) == typeid(SystemMonitorPage))
-            {
-                SystemMonitorPage *page = (SystemMonitorPage *)m_pCurPage;
-                page->updateWorkState();
-            }
-#ifdef FLOWCHART
-            if (typeid(*m_pCurPage) == typeid(DFlowChartPage))
-            {
-                DFlowChartPage *page = (DFlowChartPage*)m_pCurPage;
-                page->updateWorkState();
-            }
-#endif
-            if (typeid(*m_pCurPage) == typeid(MainPage))
-            {
-                pMainPage->updMainpageState();
-            }
-            
         }
         break;
     case DISP_NOT_ALARM:
@@ -10030,14 +9097,6 @@ void MainWindow::on_dispIndication(unsigned char *pucData,int iLength)
                     case DISP_ALARM_B_LEAK:
                     case DISP_ALARM_B_TANKOVERFLOW:
                         alarmCommProc(!!pInfo->ucFlag, DISP_ALARM_PART1, DISP_ALARM_PART1_LEAK_OR_TANKOVERFLOW);
-                        /* show lockup dialog */
-                        if (!m_bLockupDlg && pInfo->ucFlag)
-                        {
-                            //LockupDlg dlg;
-                            DLeakAlarmDlg dlg;
-                            m_bLockupDlg = true;
-                            dlg.exec() ;
-                        }
                         break;
                     default :
                         break;
@@ -10048,17 +9107,6 @@ void MainWindow::on_dispIndication(unsigned char *pucData,int iLength)
         }
         break;
     case DISP_NOT_WH_STAT:
-        {
-            NOT_WH_ITEM_STRU *pItem = (NOT_WH_ITEM_STRU *)pNotify->aucData;
-            {
-                if (NULL != m_pSubPages[PAGE_SERVICE])
-                {
-                    ServicePage *page = (ServicePage *)m_pSubPages[PAGE_SERVICE];
-                    SterilizePage *subpage = (SterilizePage *)page->getSubPage(SERVICE_BTN_STERILIZE);
-                    subpage->updateRunInfo(pItem->ucType,!!pItem->ucState);
-                }
-            }            
-        }
         break;
     case DISP_NOT_RF_STATE:
         {
@@ -10100,56 +9148,10 @@ void MainWindow::on_dispIndication(unsigned char *pucData,int iLength)
             case APP_WORK_MODE_NORMAL:
                 break;
             case APP_WORK_MODE_CLEAN:
-                switch(gGlobalParam.iMachineType)
-                {
-                case MACHINE_L_Genie:
-                case MACHINE_L_UP:
-                case MACHINE_L_EDI_LOOP:
-                case MACHINE_L_RO_LOOP:
-                {
-                    switch(pItem->ucId)
-                    {
-                    case APP_RFID_SUB_TYPE_ROPACK_OTHERS:
-                        if (m_pCurPage && typeid(*m_pCurPage) == typeid(SterilizePage))
-                        {
-                            SterilizePage *page = (SterilizePage *)m_pCurPage;
-                            page->updateRfidInfo(pItem->ucId);
-                        }
-                        break;
-                    }
-                    break;
-                }
-                default:
-                {
-                    switch(pItem->ucId)
-                    {
-                    case APP_RFID_SUB_TYPE_PPACK_CLEANPACK:
-                        if (m_pCurPage && typeid(*m_pCurPage) == typeid(SterilizePage))
-                        {
-                            SterilizePage *page = (SterilizePage *)m_pCurPage;
-                            page->updateRfidInfo(pItem->ucId);
-                        }
-                        break;
-                    }
-                    break;
-                }
-                }
                 break;
             case APP_WORK_MODE_INSTALL:
-                if (m_pCurPage && typeid(*m_pCurPage) == typeid(ConsumableInsPage))
-                {
-                    ConsumableInsPage *page = (ConsumableInsPage *)m_pCurPage;
-                    page->updateRfidInfo(pItem->ucId);
-                }
-                break;
-                
+                break; 
             }
-            if (!m_bSplash && m_pCurPage && (typeid(*m_pCurPage) == typeid(SystemMonitorPage)))
-            {
-                SystemMonitorPage *page = (SystemMonitorPage *)m_pCurPage;
-                page->updateDeviceState();
-            }
-
         }
         break;
     case DISP_NOT_HANDLER_STATE:
@@ -10168,52 +9170,11 @@ void MainWindow::on_dispIndication(unsigned char *pucData,int iLength)
             }
             
             LOG(VOS_LOG_DEBUG,"Handset%d: State%d",pItem->ucId , pItem->ucState); 
-            
-            if (!m_bSplash && m_pCurPage && (typeid(*m_pCurPage) == typeid(SystemMonitorPage)))
-            {
-                SystemMonitorPage *page = (SystemMonitorPage *)m_pCurPage;
-                page->updateDeviceState();
-            }
         }
         break;
     case DISP_NOT_SPEED:
-        {
-            NOT_SPEED_ITEM_STRU *pItem = (NOT_SPEED_ITEM_STRU *)pNotify->aucData;
-
-            if (typeid(*m_pCurPage) == typeid(MainPage))
-            {
-                pMainPage->updSpeed(pItem->iType,pItem->iSpeed);
-            }
-        }
         break;
     case DISP_NOT_DEC_PRESSURE:
-        {
-            NOT_DECPRE_ITEM_STRU *pItem = (NOT_DECPRE_ITEM_STRU *)pNotify->aucData;
-            if (typeid(*m_pCurPage) == typeid(MainPage))
-            {
-                pMainPage->updDecPressureState(pItem->iType,pItem->iAction);          
-                if(pItem->iAction)
-                {
-                    //ex
-                    gEx_Ccb.Ex_Delay_Tick.ulDecPressure = ex_gulSecond;
-                    gEx_Ccb.EX_Check_State.bit1CheckDecPressure = 1;
-                    gEx_Ccb.Ex_Delay_Tick.iHandleType = pItem->iType;
-                    //end
-
-                    m_pCcb->DispSetSubWorkState4Pw(DISP_WORK_SUB_IDLE_DEPRESSURE);
-                }
-                else
-                {
-                    //ex
-                    gEx_Ccb.EX_Check_State.bit1CheckDecPressure = 0;
-                    //end
-
-                    m_pCcb->DispSetSubWorkState4Pw(DISP_WORK_SUB_IDLE);
-                }
-                
-                pMainPage->updMainpageState();
-            }
-        }
         break;
     case DISP_NOT_EXEBRD_STATE:
         {
@@ -10228,12 +9189,6 @@ void MainWindow::on_dispIndication(unsigned char *pucData,int iLength)
             else
             {
                 m_iExeActiveMask &= ~(1 << pItem->ucId);
-            }
-            
-            if (!m_bSplash && m_pCurPage && (typeid(*m_pCurPage) == typeid(SystemMonitorPage)))
-            {
-                SystemMonitorPage *page = (SystemMonitorPage *)m_pCurPage;
-                page->updateDeviceState();
             }
         }        
         break;
@@ -10251,57 +9206,16 @@ void MainWindow::on_dispIndication(unsigned char *pucData,int iLength)
             {
                 m_iFmActiveMask &= ~(1 << pItem->ucId);
             }
-            
-            if (!m_bSplash && m_pCurPage && (typeid(*m_pCurPage) == typeid(SystemMonitorPage)))
-            {
-                SystemMonitorPage *page = (SystemMonitorPage *)m_pCurPage;
-                page->updateDeviceState();
-            }
         }        
         break;
     case DISP_NOT_SWITCH_STATE:
         {
             qDebug("on_dispIndication:DISP_NOT_SWITCH_STATE \n");
-            //updateRectState(); //ex
-            
-            if (!m_bSplash && (typeid(*m_pCurPage) == typeid(SystemMonitorPage)))
-            {
-                SystemMonitorPage *page = (SystemMonitorPage *)m_pCurPage;
-                page->updateSwitchInfo();
-            }
-#ifdef FLOWCHART
-            if (!m_bSplash && (typeid(*m_pCurPage) == typeid(DFlowChartPage)))
-            {
-                DFlowChartPage *page = (DFlowChartPage *)m_pCurPage;
-                page->updateSwitchInfo();
-            }
-#endif
         }
         break;
     case DISP_NOT_RPUMP_STATE:
         {
-            
-            qDebug("DISP_NOT_RPUMP\r\n");
-            
-            if (!m_bSplash && (typeid(*m_pCurPage) == typeid(SystemMonitorPage)))
-            {
-                SystemMonitorPage *page = (SystemMonitorPage *)m_pCurPage;
-
-                NOT_RPUMP_STATE_ITEM_STRU *pItem = (NOT_RPUMP_STATE_ITEM_STRU *)pNotify->aucData;
-                
-                page->updateRpumpInfo(pItem->ucId);
-            }
-#ifdef FLOWCHART
-            if (!m_bSplash && (typeid(*m_pCurPage) == typeid(DFlowChartPage)))
-            {
-                DFlowChartPage *page = (DFlowChartPage *)m_pCurPage;
-
-                NOT_RPUMP_STATE_ITEM_STRU *pItem = (NOT_RPUMP_STATE_ITEM_STRU *)pNotify->aucData;
-
-                page->updateRpumpInfo(pItem->ucId);
-            }
-#endif
-            
+            qDebug("DISP_NOT_RPUMP\r\n");     
         }
         break;
     case DISP_NOT_TOC:
@@ -10328,32 +9242,21 @@ void MainWindow::on_dispIndication(unsigned char *pucData,int iLength)
                 fToc = 200;
             }
 
-            pMainPage->updToc(fToc);
-
             m_curToc = (int)(fToc + 0.5);
 
 #ifdef D_HTTPWORK
             m_uploadNetData.m_otherInfo.fToc = fToc;
 #endif
-
-            //2018.11.13
-            if (NULL != m_pSubPages[PAGE_MENU])
-            {
-                MenuPage *page = (MenuPage *)m_pSubPages[PAGE_MENU];
-
-                //WaterQualityPage *subpage = (WaterQualityPage *)page->getSubPage(MENU_BTN_WATER_QUALITY_PARAMETER);
-                DWaterQualityPage *subpage = (DWaterQualityPage *)page->getSubPage(MENU_BTN_WATER_QUALITY_PARAMETER);
-                subpage->updTOC(fToc);
-            }
-            //end
-#ifdef FLOWCHART
-            if (NULL != m_pSubPages[PAGE_FLOWCHART])
-            {
-                DFlowChartPage *page = (DFlowChartPage *)m_pSubPages[PAGE_FLOWCHART];
-                page->updTOC(fToc);
-            }
-#endif
             m_pCcb->DispSndHoPpbAndTankLevel(APP_PROTOL_CANID_BROADCAST,APP_PACKET_HO_QL_TYPE_PPB,0,fToc);
+
+            if(fToc > gGlobalParam.MMParam.SP[MACHINE_PARAM_SP34])
+            {
+                alarmCommProc(true,DISP_ALARM_PART1, DISP_ALARM_PART1_HIGHER_TOC);
+            }
+            else
+            {
+                alarmCommProc(false,DISP_ALARM_PART1, DISP_ALARM_PART1_HIGHER_TOC);
+            }
         }        
         break;
     case DISP_NOT_UPD:
@@ -10363,14 +9266,6 @@ void MainWindow::on_dispIndication(unsigned char *pucData,int iLength)
             switch(pItem->iType)
             {
             case 0:
-                {
-                    if (typeid(*m_pCurPage) == typeid(DFactoryTestPage))
-                    {
-                        DFactoryTestPage *page = qobject_cast<DFactoryTestPage*>(m_pCurPage);
-                        page->zigbeeUpdResult(pItem->iResult,pItem->iPercent);
-                    }
-                        
-                }
                 break;
             }
         }        
@@ -10393,21 +9288,9 @@ void MainWindow::on_dispIndication(unsigned char *pucData,int iLength)
         }
         break;
     case DISP_NOT_REALTIME_QTW_VOLUME:
-        {
-            NOT_REALTIME_QTW_VOLUME_ITEM_STRU *pItem = (NOT_REALTIME_QTW_VOLUME_ITEM_STRU *)pNotify->aucData;
-
-            unsigned int volume = pItem->ulValue;
-
-            if (typeid(*m_pCurPage) == typeid(MainPage))
-            {
-                pMainPage->updRealTimeQtwVolume(volume);
-            }
-        }
         break;
     }
     mem_free(pucData);
-    
-    //qDebug("ou Ind %d %d\r\n" ,iSeq1,++iSeq2);
 }
 
 void MainWindow :: addRfid2DelayList(int iRfId)
@@ -10474,68 +9357,10 @@ void MainWindow :: rmvRfidFromDelayList(int iRfId)
     }
 }
 
-void MainWindow::on_AutoLogin(void)
-{
-    static bool bEnter = false;
-
-    if (bEnter ) return ;
-
-    qDebug("on_AutoLogin \n");
-
-    bEnter = true;
-
-    {
-        LoginDlg Login;
-        Login.setGeometry(200,100,300,200);
-        Login.show();
-        
-        if (Login.exec() == QDialog::Accepted) 
-        {
-            m_bLoged = true;
-        }
-        
-        qDebug("close LoginDlg \n");
-        
-    }
-    
-    bEnter = false;
-}
-
-
-
-int check_Sub_Account()
-{
-#ifdef SUB_ACCOUNT
-    if (!(gGlobalParam.MiscParam.ulMisFlags & (1 << DISP_SM_SUB_ACCOUNT)))
-    {
-        return 1;
-    }
-
-    if(gUserLoginState.loginState())
-    {
-        return 1;
-    }
-    if (gpMainWnd)
-    {
-        gpMainWnd->emitUserLogin();
-    }
-    return 0;
-#else
-    return 1;
-#endif
-
-}
-
 void DispGetHandlerConfig(int addr)
 {
     UNUSED(addr);
 }
-
-void MainWindow::emitUserLogin()
-{
-    emit userNeedLogin();
-}
-
 
 DB_HANDLER_STRU * getHandler(int addr)
 {
@@ -10567,361 +9392,21 @@ ECO_INFO_STRU * MainWindow:: getEco(int index)
     return  &m_EcoInfo[index];
 }
 
-void MainWindow::on_Stop_clicked()
+bool MainWindow::PackDetected()
 {
-    m_pCcb->DispCmdEntry(DISP_CMD_HALT,NULL,0);
-}
-
-SetDevicePage *MainWindow::getDeviceDlg()
-{
-    if (typeid(*m_pCurPage) == typeid(SetDevicePage))
+    if(gGlobalParam.MiscParam.ulMisFlags & (1 << DISP_SM_RFID_Authorization))
     {
-        SetDevicePage *page = (SetDevicePage *)m_pCurPage;
-        return page;
-    }
-
-    return NULL;
-
-}
-
-DInitHandleCfgpage *MainWindow::getExInitPage()
-{
-    if (typeid(*m_curExInitPage) == typeid(DInitHandleCfgpage))
-    {
-        DInitHandleCfgpage *page = (DInitHandleCfgpage *)m_curExInitPage;
-        return page;
-    }
-
-    return NULL;
-}
-
-void MainWindow::on_Exit_clicked()
-{
-    m_bLoged = false;
-
-}
-void MainWindow::on_pbRun_clicked()
-{
-    if (m_bLoged)
-    {
-        m_pCcb->DispCmdEntry(DISP_CMD_RUN,NULL,0);
+        return true;
     }
     else
     {
-        emit autoLogin();
-    }
+        int iRet = getActiveRfidBrds();
 
-}
-
-void MainWindow::run(bool bRun)
-{
-    /* check machine state */
-    int iRet;
-    
-    MainPage *pMainPage = (MainPage *)m_pSubPages[PAGE_MAIN];
-    
-    if (bRun)
-    {
-        bool bError = false;
-
-        if (m_pCcb->DispGetROWashFlag())
-        {           
-            DWarningDlg dlg(tr("RO cleaning is in process. Please put system to Operate after the cleaning."));
-            dlg.exec();
-            bError = true;
-        }
-
-        if(m_pCcb->getKeyState() & (1 << APP_EXE_DIN_RF_KEY))
+        if (iRet <= 0)
         {
-            DWarningDlg dlg(tr("Pretreatment backwash is in progress. System will start automatically afterwords."));
-            dlg.exec();
-            bError = true;
+            return false;
         }
-        
-        if(m_pCcb->getKeyState() & (1 << APP_EXE_DIN_LEAK_KEY))
-        {
-            DWarningDlg dlg(tr("Water tank overflow or system leakage detected. Please fix the issue and re-start the starem."));
-            dlg.exec();
-            bError = true;
-        }
-
-        if( m_pCcb->getLeakState())
-        {
-            DWarningDlg dlg(tr("system leakage detected. Please fix the issue and re-start the starem."));
-            dlg.exec();
-            bError = true;
-        }
-
-        if (!getActiveExeBrds())
-        {
-            DWarningDlg dlg(tr("System communication is abnormal. Please restart the device or contact a service engineer."));
-            dlg.exec();
-            bError = true;
-        }
-
-        if(bError)
-        {
-            if (typeid(*m_pCurPage) == typeid(MainPage))
-            {
-                pMainPage->updateRunInfo(false);
-            }
-            return;
-        }
-
-        if(gGlobalParam.MiscParam.ulMisFlags & (1 << DISP_SM_RFID_Authorization))
-        {
-            if(gAdditionalCfgParam.machineInfo.iMachineFlow < 500)
-            {
-                DRunWarningDialog runDlg(tr("Confirm ALL cartridges are installed. System will START by pressing Confirm!"));
-                if(QDialog::Accepted != runDlg.exec())
-                {
-                    pMainPage->updateRunInfo(false);
-                    return;
-                }
-            }
-        }
-        else
-        {
-            iRet = getActiveRfidBrds();
-
-            if (iRet <= 0)
-            {
-                if (typeid(*m_pCurPage) == typeid(MainPage))
-                {
-                    pMainPage->updateRunInfo(false);
-                }
-
-                switch(-iRet)
-                {
-                case DISP_PRE_PACK:
-                    ToastDlg::makeToast(tr("PRE Pack Not Detected"));
-                    return;
-                case DISP_AC_PACK:
-                    ToastDlg::makeToast(tr("AC Pack Not Detected"));
-                    return;
-                case DISP_P_PACK:
-                    ToastDlg::makeToast(tr("P Pack Not Detected"));
-                    return;
-                case DISP_U_PACK:
-                    ToastDlg::makeToast(tr("U Pack Not Detected"));
-                    return;
-                case DISP_AT_PACK:
-                    ToastDlg::makeToast(tr("AT Pack Not Detected"));
-                    return;
-                case DISP_H_PACK:
-                    ToastDlg::makeToast(tr("H Pack Not Detected"));
-                    return;
-                default:
-                   break;
-                }
-            }
-        }
-
-        //Check whether the Pack is installed correctly, whether or not the RFID is turned on.
-        {
-            iRet = getActiveRfidBrds();
-
-            if (iRet <= 0)
-            {
-                QString warningMsg;
-                switch(-iRet)
-                {
-                case (DISP_PRE_PACK | 0xFF00):
-                    warningMsg = tr("Pre Pack Error! Do you want to continue?");
-                    bError = true;
-                    break;
-                case (DISP_AC_PACK | 0xFF00):
-                    warningMsg = tr("AC Pack Error! Do you want to continue?");
-                    bError = true;
-                    break;
-                case (DISP_P_PACK | 0xFF00):
-                    warningMsg = tr("P Pack Error! Do you want to continue?");
-                    bError = true;
-                    break;
-                case (DISP_U_PACK | 0xFF00):
-                    warningMsg = tr("U Pack Error! Do you want to continue?");
-                    bError = true;
-                    break;
-                case (DISP_AT_PACK | 0xFF00):
-                    warningMsg = tr("AT Pack Error! Do you want to continue?");
-                    bError = true;
-                    break;
-                case (DISP_H_PACK | 0xFF00):
-                    warningMsg = tr("H Pack Error! Do you want to continue?");
-                    bError = true;
-                    break;
-               }
-
-                if(bError)
-                {
-                    DRunWarningDialog runDlg(warningMsg);
-                    runDlg.setButtonText(0, tr("Continue"));
-                    if(QDialog::Accepted != runDlg.exec())
-                    {
-                        gAdditionalCfgParam.lastRunState = 0;
-                        MainSaveLastRunState(gGlobalParam.iMachineType);
-
-                        if (NULL != m_pSubPages[PAGE_MAIN])
-                        {
-                            MainPage *page = (MainPage *)m_pSubPages[PAGE_MAIN];
-                            page->updateRunInfo(false);
-                        }
-                        
-                        return;
-                    }
-               }
-            }
-        }
-        
-        if (DISP_WORK_STATE_IDLE == m_pCcb->DispGetWorkState())
-        {
-            m_pCcb->DispCmdEntry(DISP_CMD_RUN, NULL, 0);
-
-            gAdditionalCfgParam.lastRunState = 1;
-            MainSaveLastRunState(gGlobalParam.iMachineType);
-            excepCounter = 0;
-            return;
-        }
-        
-        ++excepCounter;
-        if(excepCounter > 3)
-        {
-            DRunWarningDialog exceptDlg(tr("System exception. Need to reload the system program. Restart the system now?"));
-            exceptDlg.setButtonText(0, tr("Yes"));
-            exceptDlg.setButtonText(1, tr("No"));
-            if(QDialog::Accepted == exceptDlg.exec())
-            {
-                this->restart();
-            }
-            else
-            {
-                excepCounter = 0;
-            }
-        }
-
-        if (typeid(*m_pCurPage) == typeid(MainPage))
-        {
-            pMainPage->updateRunInfo(false);
-        }
-        
-        return ;
-       
-    }
-    
-    if (DISP_WORK_STATE_IDLE != m_pCcb->DispGetWorkState())
-    {
-        m_pCcb->DispCmdEntry(DISP_CMD_HALT,NULL,0);
-
-        gAdditionalCfgParam.lastRunState = 0;
-        MainSaveLastRunState(gGlobalParam.iMachineType);
-    
-        return ;
-    }
-
-}
-
-void MainWindow::home()
-{
-    int iIdx;
-#ifdef FLOWCHART
-    m_curPageIdx = 1;
-#else
-    m_curPageIdx = 0;
-#endif
-
-
-    for (iIdx = 0; iIdx < m_pageList.count();iIdx++)
-    {
-        CPage *page = m_pageList[iIdx];
-
-        if (page != m_pSubPages[m_curPageIdx])
-        {
-            page->show(false);
-        }
-    }   
-    
-    m_pSubPages[m_curPageIdx]->show(true);
-}
-
-void MainWindow::naviPage(int iCurPage,int iDir)
-{
-#ifdef FLOWCHART
-    if (iCurPage < (PAGE_NUM - 1) && !iDir )
-    {
-        m_pSubPages[iCurPage]->show(false);
-        m_pSubPages[iCurPage + 1]->show(true);
-        m_curPageIdx += 1;
-    }
-    else if (iCurPage > 0 && iDir )
-    {
-        m_pSubPages[iCurPage]->show(false);
-        m_pSubPages[iCurPage - 1]->show(true);
-        m_curPageIdx -= 1;
-    }
-#else
-    if (iCurPage < (PAGE_NUM - 1) && !iDir )
-    {
-        m_pSubPages[iCurPage]->show(false);
-        m_pSubPages[iCurPage + 1]->show(true);
-        m_curPageIdx += 1;
-    }
-    else if (iCurPage > 0 && iDir )
-    {
-        m_pSubPages[iCurPage]->show(false);
-        m_pSubPages[iCurPage - 1]->show(true);
-        m_curPageIdx -= 1;
-    }
-#endif
-}
-
-void MainWindow::naviInitPage(int iCurPage, int iDir)
-{
-    if (iCurPage < (Ex_Init_Num - 1) && !iDir )
-    {
-        m_pExInitPages[iCurPage]->show(false);
-        switch(iCurPage)
-        {
-        case Ex_Init_Time:
-            if(gGlobalParam.iMachineType != MACHINE_ADAPT)
-            {
-                m_pExInitPages[iCurPage + 1]->show(true);
-                m_curExInitPage = m_pExInitPages[iCurPage + 1];
-            }
-            else
-            {
-                m_pExInitPages[iCurPage + 2]->show(true);
-                m_curExInitPage = m_pExInitPages[iCurPage + 2];
-            }
-            break;
-        default:
-            m_pExInitPages[iCurPage + 1]->show(true);
-            m_curExInitPage = m_pExInitPages[iCurPage + 1];
-            break;
-        }
-    }
-
-    else if (iCurPage > 0 && iDir )
-    {
-        m_pExInitPages[iCurPage]->show(false);
-        switch(iCurPage)
-        {
-        case Ex_Init_Syscfg:
-            if(gGlobalParam.iMachineType != MACHINE_ADAPT)
-            {
-                m_pExInitPages[iCurPage - 1]->show(true);
-                m_curExInitPage = m_pExInitPages[iCurPage - 1];
-            }
-            else
-            {
-                m_pExInitPages[iCurPage - 2]->show(true);
-                m_curExInitPage = m_pExInitPages[iCurPage - 2];
-            }
-            break;
-        default:
-            m_pExInitPages[iCurPage - 1]->show(true);
-            m_curExInitPage = m_pExInitPages[iCurPage - 1];
-            break;
-        }
+        return true;
     }
 }
 
@@ -10936,39 +9421,6 @@ const DUserInfo MainWindow::getLoginfo()
     return m_userInfo;
 }
 
-int MainWindow::on_userLogin()
-{
-    LoginDlg dlg;
-    dlg.exec();
-    if(0 == dlg.m_iLogInResult)
-    {
-        DUserInfoChecker userInfo;
-        int ret = userInfo.checkUserInfo(dlg.m_strUserName, dlg.m_strPassword);
-        switch(ret)
-        {
-        case 4:
-        case 3:
-        case 31:
-        case 2:
-        case 1:
-            saveLoginfo(dlg.m_strUserName, dlg.m_strPassword);
-            gUserLoginState.setLoginState(true);
-            if (NULL != m_pSubPages[PAGE_MAIN])
-            {
-                MainPage *page = (MainPage *)m_pSubPages[PAGE_MAIN];
-                page->showLogoutBtn(true);
-            }
-            return 1;
-        case 0:
-            DLoginWarningDialog::getInstance(tr("Login failed!"));
-            return 0;
-        default:
-            return 0;
-        }
-    }
-    return 0;
-}
-
 void MainWindow::MainWriteLoginOperationInfo2Db(int iActId)
 {
    /* write to log */
@@ -10976,12 +9428,8 @@ void MainWindow::MainWriteLoginOperationInfo2Db(int iActId)
 
     bool bResult;
 
-    time_t timer = time(NULL);
-    struct tm *tblock = localtime(&timer);
-    QString strTime  ;
-    
+    QString strTime = QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss");
 
-    strTime.sprintf("%04d-%02d-%02d %02d:%02d:%02d",tblock->tm_year + 1900,tblock->tm_mon + 1,tblock->tm_mday,tblock->tm_hour,tblock->tm_min,tblock->tm_sec);
     query.prepare(INSERT_sql_Log);
     query.bindValue(":name"  , m_userInfo.m_strUserName);
     query.bindValue(":action", gastrLoginOperateActionName[iActId]);
@@ -11005,16 +9453,12 @@ void MainWindow::MainWriteCMInstallInfo2Db(int iActId,int iItemIdx,CATNO cn,LOTN
 
     QString strInfo = cn ;
 
-    time_t timer = time(NULL);
-    struct tm *tblock = localtime(&timer);
-    QString strTime   ;
+    QString strTime = QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss");
 
     (void)iItemIdx;
 
     strInfo += "-";
     strInfo += ln;
-
-    strTime.sprintf("%04d-%02d-%02d %02d:%02d:%02d",tblock->tm_year + 1900,tblock->tm_mon + 1,tblock->tm_mday,tblock->tm_hour,tblock->tm_min,tblock->tm_sec);
 
     query.prepare(INSERT_sql_Log);
     query.bindValue(":name"  , m_userInfo.m_strUserName);
@@ -11036,15 +9480,10 @@ void MainWindow::MainWriteMacInstallInfo2Db(int iActId,int iItemIdx,CATNO cn,LOT
    /* write to log */
     QSqlQuery query;
 
-    time_t timer = time(NULL);
-    struct tm *tblock = localtime(&timer);
-    QString strTime   ;
+    QString strTime = QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss");
     QString strInfo   = cn ;
 
     (void)iItemIdx;
-
-    strTime.sprintf("%04d-%02d-%02d %02d:%02d:%02d",tblock->tm_year + 1900,tblock->tm_mon + 1,tblock->tm_mday,tblock->tm_hour,tblock->tm_min,tblock->tm_sec);
-
     strInfo += "-";
     strInfo += ln;
 
@@ -11283,17 +9722,6 @@ void MainWindow::buildTranslation()
 
 }
 
-void MainWindow::on_Ex_ScreenPageHide()
-{
-    if(typeid(*m_pCurPage) == typeid(DScreenSleepPage))
-    {
-        m_pCurPage->show(false);
-        emit SleepPageShow(false);
-        m_pPreviousPage->show(true);
-    }
-
-}
-
 int MainWindow::getActiveHandlerBrds() 
 {
     if ((m_iHandlerMask & m_iHandlerActiveMask) == m_iHandlerMask)
@@ -11310,15 +9738,7 @@ int MainWindow::getActiveHandlerBrds()
 
 int MainWindow::getActiveRfidBrds() 
 {
-    int iLoop;
-    
-    //if ((m_iRfidActiveMask & MacRfidMap.ulMask4Normlwork) != MacRfidMap.ulMask4Normlwork)
-    //{
-    //    return 0;
-    //}
-#if 1
-    /* check Packs */
-    for (iLoop = 0; iLoop < APP_RFID_SUB_TYPE_NUM; iLoop++)
+    for (int iLoop = 0; iLoop < APP_RFID_SUB_TYPE_NUM; iLoop++)
     {
         if ((m_iRfidActiveMask & MacRfidMap.ulMask4Normlwork) & (1 << iLoop))
         {
@@ -11345,7 +9765,7 @@ int MainWindow::getActiveRfidBrds()
             return -(MacRfidMap.aiDeviceType4Normal[iLoop]);
         }
     }
-#endif
+
     return 1;
 }
 
@@ -11499,6 +9919,7 @@ void MainWindow::ClearToc()
         alarmCommProc(false,DISP_ALARM_PART1,DISP_ALARM_PART1_HIGHER_TOC_SENSOR_TEMPERATURE);
         alarmCommProc(false,DISP_ALARM_PART1,DISP_ALARM_PART1_LOWER_TOC_SENSOR_TEMPERATURE);
         alarmCommProc(false,DISP_ALARM_PART1,DISP_ALARM_PART1_LOWER_TOC_SOURCE_WATER_RESISTENCE);
+        alarmCommProc(false, DISP_ALARM_PART1,DISP_ALARM_PART1_HIGHER_TOC);
     }
 }
 
@@ -11744,11 +10165,10 @@ void MainWindow::updatePackFlow()
 
     switch(gGlobalParam.iMachineType)
     {
-    case MACHINE_Genie:
     case MACHINE_UP:
     case MACHINE_EDI:
     case MACHINE_RO:
-    case MACHINE_ADAPT:
+    case MACHINE_RO_H:
     {
         if((nSwitchMask & ( 1 << APP_EXE_E1_NO))
             && (nSwitchMask & ( 1 << APP_EXE_E2_NO)))
@@ -11792,9 +10212,7 @@ void MainWindow::checkConsumableInstall(int iRfId)
 
     if(m_checkConsumaleInstall[iRfId]->comparedWithSql())
     {
-#ifdef LOCAL_UI    
-        m_consumaleInstallDialog[iRfId]->show();
-#endif
+
     }
 }
 
@@ -11815,39 +10233,11 @@ void MainWindow::checkUserLoginStatus()
 #else
     gAutoLogoutTimer++;
 #endif
-
-    if(gUserLoginState.loginState())
-    {
-#ifdef LOCAL_UI    
-        gUserLoginState.checkAutoLogout();
-#endif
-    }
-    else
-    {
-        if (NULL != m_pSubPages[PAGE_MAIN])
-        {
-            MainPage *page = (MainPage *)m_pSubPages[PAGE_MAIN];
-            page->showLogoutBtn(false);
-        }
-    }
 }
 
 void MainWindow::updateRunningFlushTime()
 {
-    if(NOT_RUNING_STATE_FLUSH == m_pCcb->DispGetRunningStateFlag())
-    {
-        ++m_runningFlushTime;
 
-        MainPage *pMainPage = (MainPage *)m_pSubPages[PAGE_MAIN];
-        if (typeid(*m_pCurPage) == typeid(MainPage))
-        {
-            pMainPage->updMainpageState();
-        }
-    }
-    else
-    {
-        m_runningFlushTime = 0;
-    }
 }
 
 int MainWindow::runningFlushTime()
@@ -11886,13 +10276,16 @@ void MainWindow::setStartCheckConsumable(bool isStart)
     m_startCheckConsumable = isStart;
 }
 
-void MainWindow::retriveLastRunState()
+void MainWindow::onMainStartQtwTimer(int iValue)
 {
-    if(gAdditionalCfgParam.lastRunState)
-    {
-        this->run(true);
-    }
+    QTimer::singleShot(iValue, this, SLOT(onMainQtwTimerout()));
 }
+
+void  MainWindow::onMainQtwTimerout()
+{
+    emit qtwTimerOut();
+}
+
 
 void MainWindow::updateCMInfoWithRFID(int operate)
 {
@@ -11917,11 +10310,10 @@ void MainWindow::updateCMInfoWithRFID(int operate)
 
     switch(gGlobalParam.iMachineType)
     {
-    case MACHINE_Genie:
     case MACHINE_UP:
     case MACHINE_EDI:
     case MACHINE_RO:
-    case MACHINE_ADAPT:
+    case MACHINE_RO_H:
     {
         packType   = DISP_AC_PACK;
         iRfId = APP_RFID_SUB_TYPE_ROPACK_OTHERS;
@@ -11935,39 +10327,16 @@ void MainWindow::updateCMInfoWithRFID(int operate)
         }
         break;
     }
-    case MACHINE_L_Genie:
-    case MACHINE_L_UP:
-    case MACHINE_L_EDI_LOOP:
-    case MACHINE_L_RO_LOOP:
-        break;
     case MACHINE_PURIST:
         break;
      }
 
     switch(gGlobalParam.iMachineType)
     {
-    case MACHINE_L_Genie:
-    case MACHINE_L_UP:
-    case MACHINE_L_EDI_LOOP:
-    case MACHINE_L_RO_LOOP:
-    {
-        packType = DISP_P_PACK;
-        iRfId = APP_RFID_SUB_TYPE_ROPACK_OTHERS;
-        if(RFID_OPERATION_READ == operate)
-        {
-            readCMInfoFromRFID(iRfId, packType);
-        }
-        else
-        {
-            writeCMInfoToRFID(iRfId, packType);
-        }
-        break;
-    }
-    case MACHINE_Genie:
     case MACHINE_UP:
     case MACHINE_EDI:
     case MACHINE_RO:
-    case MACHINE_ADAPT:
+    case MACHINE_RO_H:
     {
         packType = DISP_P_PACK;
         iRfId = APP_RFID_SUB_TYPE_PPACK_CLEANPACK;
@@ -11987,31 +10356,8 @@ void MainWindow::updateCMInfoWithRFID(int operate)
 
     switch(gGlobalParam.iMachineType)
     {
-    case MACHINE_L_Genie:
-    case MACHINE_L_EDI_LOOP:
-    {
-        packType = DISP_AT_PACK;
-        iRfId = APP_RFID_SUB_TYPE_HPACK_ATPACK;
-        if(RFID_OPERATION_READ == operate)
-        {
-            readCMInfoFromRFID(iRfId, packType);
-        }
-        else
-        {
-            writeCMInfoToRFID(iRfId, packType);
-        }
-        break;
-    }
-    default:
-        break;
-    }
-
-    switch(gGlobalParam.iMachineType)
-    {
-    case MACHINE_L_UP:
     case MACHINE_UP:
     case MACHINE_PURIST:
-    case MACHINE_ADAPT:
     {
         packType = DISP_H_PACK;
         iRfId = APP_RFID_SUB_TYPE_HPACK_ATPACK;
@@ -12031,12 +10377,8 @@ void MainWindow::updateCMInfoWithRFID(int operate)
 
      switch(gGlobalParam.iMachineType)
      {
-     case MACHINE_L_Genie:
-     case MACHINE_L_UP:
-     case MACHINE_Genie:
      case MACHINE_UP:
      case MACHINE_PURIST:
-     case MACHINE_ADAPT:
      {
          packType = DISP_U_PACK;
          iRfId = APP_RFID_SUB_TYPE_UPACK_HPACK;
@@ -12226,13 +10568,13 @@ const QDate MainWindow::resetExConsumableMsg(QDate &date, int iRfid, int iType, 
             int iRet = writeRfid(iRfid, RF_DATA_LAYOUT_INSTALL_DATE, strDate);
             if(iRet != 0)
             {
-                QMessageBox::warning(NULL, tr("Warning"), tr("write install date error"), QMessageBox::Ok);
+                qDebug() << "write install date error";
             }
 
             iRet = writeRfid(iRfid, RF_DATA_LAYOUT_UNKNOW_DATA, "0");
             if(iRet != 0)
             {
-                QMessageBox::warning(NULL, tr("Warning"), tr("write vol data error"), QMessageBox::Ok);
+                qDebug() << "write vol data error";
             }
             return curDate;
         }
@@ -12626,10 +10968,12 @@ void MainWindow::printWorker(const ServiceLogPrint & data)
     qDebug() << buffer << endl;
 }
 
+#define DCJ_BASE64
+
 int  copyAlarmFile(QDateTime& startTime, QDateTime& endTime)
 {
 
-    QFile file("/media/sda1/GenieData/Alarm.csv");
+    QFile file("/media/sda1/Data/Alarm.csv");
     if(!file.open(QFile::WriteOnly | QFile::Truncate))
     {
         return -1;
@@ -12641,7 +10985,7 @@ int  copyAlarmFile(QDateTime& startTime, QDateTime& endTime)
         << QString("Status") << ","
         << QString("Time") << "\n";
 
-    QString strSqlSel = QString("select * from Alarm where time >=%1  and time < %2")\
+    QString strSqlSel = QString("select * from Alarm where time >= '%1' and time < '%2'")\
                              .arg(startTime.toString("yyyy-MM-dd hh:mm:ss"))\
                              .arg(endTime.toString("yyyy-MM-dd hh:mm:ss"));
 
@@ -12663,7 +11007,7 @@ int  copyAlarmFile(QDateTime& startTime, QDateTime& endTime)
         return -1;
     }
     QByteArray content = file.readAll().toBase64();
-    QFile fileBase64("/media/sda1/GenieData/Alarm.dcj");
+    QFile fileBase64("/media/sda1/Data/Alarm.dcj");
     if(!fileBase64.open(QFile::WriteOnly | QFile::Truncate))
     {
         return -1;
@@ -12673,44 +11017,65 @@ int  copyAlarmFile(QDateTime& startTime, QDateTime& endTime)
     file.close();
     fileBase64.close();
 
-    QFile::remove("/media/sda1/GenieData/Alarm.csv");
+    QFile::remove("/media/sda1/Data/Alarm.csv");
 #endif
     return 0;
 }
 
 int copyGetWater(QDateTime& startTime, QDateTime& endTime)
 {
-    QFile file("/media/sda1/GenieData/GetWater.csv");
+    QFile file("/media/sda1/Data/GetWater.csv");
     if(!file.open(QFile::WriteOnly | QFile::Truncate))
     {
         return -1;
     }
-
-    QTextStream out(&file);
-    out << QString("ID") << ","
-        << QString("WName") << ","
-        << QString("Quantity") << ","
-        << QString("Quantity") << ","
-        << QString("TOC") << ","
-        << QString("Tmp") << ","
-        << QString("Time") << "\n";
-
-    QString strSqlSel = QString("select * from GetW where time >=%1  and time < %2")\
+    
+    QString strSqlSel = QString("select * from GetW where time >= '%1' and time < '%2'")\
                              .arg(startTime.toString("yyyy-MM-dd hh:mm:ss"))\
                              .arg(endTime.toString("yyyy-MM-dd hh:mm:ss"));
 
     QSqlQuery query;
     query.exec(strSqlSel);
-    while(query.next())
+
+    QTextStream out(&file);
+    out << QString("ID") << ","
+        << QString("UP/HP") << ","
+        << QString("Quantity") << ","
+        << QString("Quality") << ","
+        << QString("TOC") << ","
+        << QString("Temp.") << ","
+        << QString("Time") << "\n";
+    
+    switch(gGlobalParam.iMachineType)
     {
-        out << query.value(0).toInt() << ","
-            << query.value(1).toString() << ","
-            << query.value(2).toDouble() << ","
-            << query.value(3).toDouble() << ","
-            << query.value(4).toInt() << ","
-            << query.value(5).toDouble() << ","
-            << query.value(6).toString() << "\n";
+    case MACHINE_UP:
+    case MACHINE_PURIST:
+        while(query.next())
+        {
+            out << query.value(0).toInt() << ","
+                << query.value(1).toString() << ","
+                << query.value(2).toDouble() << ","
+                << query.value(3).toDouble() << ","
+                << query.value(4).toInt() << ","
+                << query.value(5).toDouble() << ","
+                << query.value(6).toString() << "\n";
+        }
+        break;
+    default:
+        while(query.next())
+        {
+            out << query.value(0).toInt() << ","
+                << query.value(1).toString() << ","
+                << query.value(2).toDouble() << ","
+                << query.value(3).toDouble() << ","
+                << QString("NULL") << ","
+                << query.value(5).toDouble() << ","
+                << query.value(6).toString() << "\n";
+        }
+        break;
     }
+    
+
     file.close();
 
 #ifdef DCJ_BASE64
@@ -12720,7 +11085,7 @@ int copyGetWater(QDateTime& startTime, QDateTime& endTime)
         return -1;
     }
     QByteArray content = file.readAll().toBase64();
-    QFile fileBase64("/media/sda1/GenieData/GetWater.dcj");
+    QFile fileBase64("/media/sda1/Data/GetWater.dcj");
     if(!fileBase64.open(QFile::WriteOnly | QFile::Truncate))
     {
         return -1;
@@ -12730,50 +11095,120 @@ int copyGetWater(QDateTime& startTime, QDateTime& endTime)
     file.close();
     fileBase64.close();
 
-    QFile::remove("/media/sda1/GenieData/GetWater.csv");
+    QFile::remove("/media/sda1/Data/GetWater.csv");
 #endif    
     return 0;
 }
 
 int copyProduceWater(QDateTime& startTime, QDateTime& endTime)
 {
-    QFile file("/media/sda1/GenieData/ProductWater.csv");
+    QFile file("/media/sda1/Data/ProductWater.csv");
     if(!file.open(QFile::WriteOnly | QFile::Truncate))
     {
         return -1;
     }
-
-    QTextStream out(&file);
-    out << QString("ID") << ","
-        << QString("Duration") << ","
-        << QString("Ecoroin") << ","
-        << QString("Tmproin") << ","
-        << QString("Ecorores") << ","
-        << QString("eEcoropw") << ","
-        << QString("Tmpropw") << ","
-        << QString("Ecoedi") << ","
-        << QString("Tmpedi") << ","
-        << QString("Time") << "\n";
-
-    QString strSqlSel = QString("select * from PWater where time >=%1  and time < %2")\
-                             .arg(startTime.toString("yyyy-MM-dd hh:mm:ss"))\
-                             .arg(endTime.toString("yyyy-MM-dd hh:mm:ss"));
-
+    
+    QString strSqlSel = QString("select * from PWater where time >= '%1' and time < '%2'")\
+                                 .arg(startTime.toString("yyyy-MM-dd hh:mm:ss"))\
+                                 .arg(endTime.toString("yyyy-MM-dd hh:mm:ss"));
     QSqlQuery query;
-    query.exec("strSqlSel");
-    while(query.next())
+    query.exec(strSqlSel);
+    QTextStream out(&file);
+    
+    switch(gGlobalParam.iMachineType)
     {
-        out << query.value(0).toInt() << ","
-            << query.value(1).toInt() << ","
-            << query.value(2).toDouble() << ","
-            << query.value(3).toDouble() << ","
-            << query.value(4).toDouble() << ","
-            << query.value(5).toDouble() << ","
-            << query.value(6).toDouble() << ","
-            << query.value(7).toDouble() << ","
-            << query.value(8).toDouble() << ","
-            << query.value(9).toString() << "\n";
-    }
+    case MACHINE_EDI:
+        {
+            out << QString("ID") << ","
+                << QString("Duration") << ","
+                << QString("Feed Cond.") << ","
+                << QString("Feed Temp.") << ","
+                << QString("RO Rejection Rate") << ","
+                << QString("RO Product") << ","
+                << QString("RO Temp.") << ","
+                << QString("EDI Product") << ","
+                << QString("EDI Temp.") << ","
+                << QString("Time") << "\n";
+
+            while(query.next())
+            {
+                out << query.value(0).toInt() << ","
+                    << query.value(1).toInt() << ","
+                    << query.value(2).toDouble() << ","
+                    << query.value(3).toDouble() << ","
+                    << query.value(4).toDouble() << ","
+                    << query.value(5).toDouble() << ","
+                    << query.value(6).toDouble() << ","
+                    << query.value(7).toDouble() << ","
+                    << query.value(8).toDouble() << ","
+                    << query.value(9).toString() << "\n";
+            }
+        }
+        break;
+    case MACHINE_UP:
+    case MACHINE_RO:
+        {
+            out << QString("ID") << ","
+                << QString("Duration") << ","
+                << QString("Feed Cond.") << ","
+                << QString("Feed Temp.") << ","
+                << QString("RO Rejection Rate") << ","
+                << QString("RO Product") << ","
+                << QString("RO Temp.") << ","
+                << QString("HP Product") << ","
+                << QString("HP Temp.") << ","
+                << QString("Time") << "\n";
+
+            while(query.next())
+            {
+                out << query.value(0).toInt() << ","
+                    << query.value(1).toInt() << ","
+                    << query.value(2).toDouble() << ","
+                    << query.value(3).toDouble() << ","
+                    << query.value(4).toDouble() << ","
+                    << query.value(5).toDouble() << ","
+                    << query.value(6).toDouble() << ","
+                    << QString("NULL") << ","
+                    << QString("NULL") << ","
+                    << query.value(9).toString() << "\n";
+            }
+        }
+        break;
+    case MACHINE_RO_H: 
+        {
+            out << QString("ID") << ","
+                << QString("Duration") << ","
+                << QString("Feed Cond.") << ","
+                << QString("Feed Temp.") << ","
+                << QString("RO Rejection Rate") << ","
+                << QString("RO Product") << ","
+                << QString("RO Temp.") << ","
+                << QString("HP Product") << ","
+                << QString("HP Temp.") << ","
+                << QString("Time") << "\n";
+
+            while(query.next())
+            {
+                out << query.value(0).toInt() << ","
+                    << query.value(1).toInt() << ","
+                    << query.value(2).toDouble() << ","
+                    << query.value(3).toDouble() << ","
+                    << query.value(4).toDouble() << ","
+                    << query.value(5).toDouble() << ","
+                    << query.value(6).toDouble() << ","
+                    << query.value(7).toDouble() << ","
+                    << query.value(8).toDouble() << ","
+                    << query.value(9).toString() << "\n";
+            }
+        }
+        break;
+    case MACHINE_PURIST:
+        break;
+    default:
+        break;
+    } 
+    
+
     file.close();
 
 #ifdef DCJ_BASE64
@@ -12783,7 +11218,7 @@ int copyProduceWater(QDateTime& startTime, QDateTime& endTime)
         return -1;
     }
     QByteArray content = file.readAll().toBase64();
-    QFile fileBase64("/media/sda1/GenieData/ProduceWater.dcj");
+    QFile fileBase64("/media/sda1/Data/ProduceWater.dcj");
     if(!fileBase64.open(QFile::WriteOnly | QFile::Truncate))
     {
         return -1;
@@ -12793,14 +11228,14 @@ int copyProduceWater(QDateTime& startTime, QDateTime& endTime)
     file.close();
     fileBase64.close();
 
-    QFile::remove("/media/sda1/GenieData/ProductWater.csv");
+    QFile::remove("/media/sda1/Data/ProductWater.csv");
 #endif    
     return 0;
 }
 
 int copyLog(QDateTime& startTime, QDateTime& endTime)
 {
-    QFile file("/media/sda1/GenieData/log.csv");
+    QFile file("/media/sda1/Data/log.csv");
     if(!file.open(QFile::WriteOnly | QFile::Truncate))
     {
         return -1;
@@ -12813,7 +11248,7 @@ int copyLog(QDateTime& startTime, QDateTime& endTime)
         << QString("Info") << ","
         << QString("Time") << "\n";
 
-    QString strSqlSel = QString("select * from Log where time >=%1  and time < %2")\
+    QString strSqlSel = QString("select * from Log where time >= '%1' and time < '%2'")\
                              .arg(startTime.toString("yyyy-MM-dd hh:mm:ss"))\
                              .arg(endTime.toString("yyyy-MM-dd hh:mm:ss"));
 
@@ -12835,7 +11270,7 @@ int copyLog(QDateTime& startTime, QDateTime& endTime)
         return -1;
     }
     QByteArray content = file.readAll().toBase64();
-    QFile fileBase64("/media/sda1/GenieData/Log.dcj");
+    QFile fileBase64("/media/sda1/Data/Log.dcj");
     if(!fileBase64.open(QFile::WriteOnly | QFile::Truncate))
     {
         return -1;
@@ -12845,7 +11280,7 @@ int copyLog(QDateTime& startTime, QDateTime& endTime)
     file.close();
     fileBase64.close();
 
-    QFile::remove("/media/sda1/GenieData/log.csv");
+    QFile::remove("/media/sda1/Data/log.csv");
 #endif  
     return 0;
 }
@@ -12860,7 +11295,7 @@ int copyHistoryToUsb(QDateTime& startTime, QDateTime& endTime)
         return 1;
     }
 
-    pathName = QString("/media/sda1/GenieData");
+    pathName = QString("/media/sda1/Data");
     dir.setPath(pathName);
     if(!dir.exists())
     {
@@ -12881,11 +11316,16 @@ int copyHistoryToUsb(QDateTime& startTime, QDateTime& endTime)
     {
         return iRet;
     }
-    iRet = copyProduceWater(startTime,endTime);
-    if (iRet)
+    
+    if(MACHINE_PURIST != gGlobalParam.iMachineType)
     {
-        return iRet;
+        iRet = copyProduceWater(startTime,endTime);
+        if (iRet)
+        {
+            return iRet;
+        }
     }
+
     iRet = copyLog(startTime,endTime);
     if (iRet)
     {

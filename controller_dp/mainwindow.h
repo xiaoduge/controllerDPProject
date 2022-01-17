@@ -11,7 +11,6 @@
 #include "cminterface.h"
 #include "eco_w.h"
 
-#include "dinithandlecfgpage.h"
 #include "dcalcpackflow.h"
 
 #include <QThread>
@@ -20,9 +19,8 @@
 #include "json/json.h"
 #include "ccb.h"
 
-
 //#define FLOWCHART
-#define D_HTTPWORK
+//#define D_HTTPWORK
 
 //#define TOUCHTEST
 
@@ -38,6 +36,12 @@ enum GLOBAL_COMPANY
     COMPANY_REPHILE = 0,
     COMPANY_VWR,
     COMPANY_NUM
+};
+
+enum SET_POINT_ENUM
+{
+    SET_POINT_FORMAT1 = 1,
+    SET_POINT_FORMAT2
 };
 
 
@@ -76,32 +80,6 @@ enum GLOBAL_BMP_ENUM
     GLOBAL_BMP_DEVICE_ON,
     GLOBAL_BMP_DEVICE_OFF,
     GLOBAL_BMP_NUM
-};
-
-enum
-{
-#ifdef FLOWCHART
-    PAGE_FLOWCHART = 0,
-    PAGE_MAIN,
-#else
-    PAGE_MAIN = 0,
-#endif
-    PAGE_MENU,
-    PAGE_SERVICE,
-//    PAGE_SET,
-    PAGE_NUM
-};
-
-enum   //ex_dcj
-{
-    Ex_Init_Lan = 0,
-    Ex_Init_Time,
-    Ex_Init_Tankcfg,
-    Ex_Init_Syscfg,
-    Ex_Init_Network,
-    Ex_Init_InstallConsumable,
-    Ex_Init_Handlercfg,
-    Ex_Init_Num
 };
 
 enum GLOBAL_FONT
@@ -192,7 +170,8 @@ class DispenseDataPrint;
 class ProductDataPrint;
 class AlarmPrint;
 class ServiceLogPrint;
-
+class QLabel;
+class CRecordParams;
 
 typedef struct
 {
@@ -227,6 +206,13 @@ struct DeviceInfo
     unsigned short usAddr;
 };
 
+enum MAINPAGE_NOTIFY_STATE_ENUM
+{
+    MAINPAGE_NOTIFY_STATE_NONE  = 0,
+    MAINPAGE_NOTIFY_STATE_ALARM = APP_PACKET_HO_ALARM_TYPE_ALM,
+    MAINPAGE_NOTIFY_STATE_NOT   = APP_PACKET_HO_ALARM_TYPE_NOT
+};
+
 class MainWindow : public QMainWindow
 {
     Q_OBJECT
@@ -236,28 +222,12 @@ public:
     ~MainWindow();
     void clearIdleSecond();
 
-
-    //2019.10.15 add, for sub-account
-    void emitUserLogin();
-
-    void setLokupState(bool state) {m_bLockupDlg = state;}
     void AfDataMsg(IAP_NOTIFY_STRU *pIapNotify);
     void zigbeeDataMsg(IAP_NOTIFY_STRU *pIapNotify);
 
     void alarmCommProc(bool bAlarm,int iAlarmPart,int iAlarmId);
     
-    QWidget * getMainWidget() {return mainWidget;}
-
-    void run(bool bRun);
-
-    void home();
-
-    QFont* getFont(int iType) {return m_pFonts[iType];}
-    
-    void addPage(CPage *page) {m_pageList << page;}
-
-    void naviPage(int iCurPage,int iDir);
-    void naviInitPage(int iCurPage,int iDir);
+    bool PackDetected();
 
     void saveLoginfo(const QString& strUserName, const QString& strPassword = "unknow");
     const DUserInfo getLoginfo();
@@ -281,20 +251,14 @@ public:
     
     void startQtw(int iType,bool bQtw = true);
 
-    
     void updHandler(int iMask,DB_HANDLER_STRU *hdls);
     void delHandler(SN name);
 
     void updRfReader(int iMask,DB_RFID_STRU *hdls);
 
     QPixmap    *getBitmap(int id);
-
-    void setCurrentPage(CPage *page){m_pCurPage = page;}
     
     DISPHANDLE startClean(int iType,bool bStart);
-    
-    SetDevicePage *getDeviceDlg();
-    DInitHandleCfgpage *getExInitPage(); //ex-dcj
 
     QString& getQss4Chk() {return m_strQss4Chk;}
 
@@ -418,51 +382,33 @@ public:
 
     QMap <QString,DeviceInfo> m_DevMap;
 
-public slots:
-    void retriveLastRunState();
+public slots:    
+    void onMainStartQtwTimer(int iValue);
+    void onMainQtwTimerout();
 
 private slots:
     void on_timerEvent();
     void on_timerPeriodEvent();
     void on_timerSecondEvent();
-    void on_timerScreenSleepEvent();
 
     void on_dispIndication(unsigned char *pucData,int iLength);
 
-    //2019.10.15 add, sub-account
-    int on_userLogin();
-
-    void on_Stop_clicked();
-
-    void on_Exit_clicked();
-    void on_pbRun_clicked();
-    void on_AutoLogin(void);
     void on_IapIndication(IAP_NOTIFY_STRU *pIapNotify);
 
     void on_btn_clicked(int tmp);
-    void on_Gif_State_Change();
     void on_timerBuzzerEvent();
 
     void buildTranslation();
 
-    void on_Ex_ScreenPageHide();
-
     void on_cm_reset(unsigned int ulMap);
 
-    //void Test();
 
 signals:
-    void autoLogin(void);
-
     void SleepPageShow(bool); //ex
     void unitsChanged();
     void updateFlowChartAlarm(const QString &msg, bool isAdd);
 
-    //2019.10.15 add, for sub-account
-    void userNeedLogin();
-
-protected:
-    void mousePressEvent(QMouseEvent *e);
+    void qtwTimerOut();
 
 private:
     //Ui::MainWindow *ui;
@@ -483,13 +429,7 @@ private:
 	void initConsumablesCfg();
     void initMachineryCfg();
 	void initRFIDCfg();
-    void initUI();
-
     
-    void Splash();
-    
-    void mainDisplay();
-
     void updEcoInfo(int iIdx);
 
     void updTank();
@@ -500,6 +440,9 @@ private:
     void initHandler();
 
     void initRfid();
+
+    void initSetPointCfg();
+    void initSystemCfgInfo();
 
     void saveHandler();
     
@@ -534,7 +477,6 @@ private:
     void initMachineNameVWR();
     //
 public:
-    void showWifiConfigDlg(const QString& name);
 #ifdef D_HTTPWORK
     void emitHttpAlarm(const DNetworkAlaramInfo &alarmInfo);
     void checkConsumableAlarm();
@@ -570,49 +512,18 @@ private:
     bool mqttProcessRun;
     int mqttNum;
 
-	int excepCounter; //系统状态异常次数
+	
     //
 #endif
-private:
-    DWifiConfigDialog *m_pWifiConfigDlg;
 
 private:
     QTimer* m_timerBuzzer;
-    
-    QWidget *mainWidget;
-
-    CBaseWidget *m_pSubWidget[PAGE_NUM];
-    CPage *m_pSubPages[PAGE_NUM];
-    //ex_dcj
-    CBaseWidget* m_pExInitWidgets[Ex_Init_Num];
-    CPage* m_pExInitPages[Ex_Init_Num];
-    CPage* m_curExInitPage;
-
-    CBaseWidget* m_pScreenSleepWidget;
-    CPage* m_pScreenSleepPage;
-    CPage* m_pPreviousPage;
-    //end
-
-
-    bool m_bSplash;
-    int  m_curPageIdx;
-
-    CPage *m_pCurPage;
-
-    QList<CPage *>     m_pageList;
-    
-    QLabel *m_pLabelGif;
-    QMovie *m_pMovieGif;
-
-    int iFirst ;
-
     QTimer* m_timeTimer;
     QTimer* m_timerPeriodEvent;
     QTimer* m_timeSecondTimer;
     QTimer* m_screenSleepTimer;
 
-
-    
+    CRecordParams *m_pRecordParams;
     int  m_periodEvents;
 
     int  m_fd4buzzer;
@@ -646,13 +557,9 @@ private:
 
     int         m_nTimerId;
 
-    bool        m_bLoged;
-
     QString     m_strLstTime;
 
     int         m_iLstDay;
-
-    QFont       *m_pFonts[GLOBAL_FONT_NUM];
 
 
     int         *m_aiAlarmRcdMask[2]; /* array 0 for fired alarm, array 1 for restored alarm */
@@ -660,8 +567,6 @@ private:
     MACHINE_ALARM_SETTING_STRU  *m_aMas;
     MACHINE_NOTIFY_SETTING_STRU *m_cMas;
     
-    bool        m_bLockupDlg;
-
     /* for tube circulation */
     bool         m_bTubeCirFlags; /* circulation in progress flag */
     int         m_iStartMinute;
@@ -710,6 +615,7 @@ private:
     QString m_consuambleInitDate; //Used to determine if it is a new consumable
 
 	QString m_strMachineName;
+    int excepCounter; //系统状态异常次数
 	
     class RFIDPackInfo
     {
@@ -840,7 +746,6 @@ private:
 
 private:
     DCheckConsumaleInstall* m_checkConsumaleInstall[APP_RFID_SUB_TYPE_NUM];
-    DConsumableInstallDialog* m_consumaleInstallDialog[APP_RFID_SUB_TYPE_NUM];
     bool m_startCheckConsumable;
     //end
 
@@ -851,7 +756,6 @@ private:
 //    DCalcPackFlow m_calcPFlow;
 
 private:
-    void initScreenSleep();
     void autoCirPreHour();
     //Determine the I number of HP history data need to save
     int idForHPGetWHistory();
@@ -860,21 +764,19 @@ private:
 	void stopTubeCir();
 	void checkTubeCir();
 
+    void checkRFIDErrorAlarm();
+
     // for printer
     void printWorker(const DispenseDataPrint &data);
     void printWorker(const ProductDataPrint &data);
     void printWorker(const AlarmPrint &data);
     void printWorker(const ServiceLogPrint & data);
-    
-private slots:
-    void on_ScreenSleep(bool sleep);
 
 };
 
 extern MainWindow *gpMainWnd;
 extern MACHINE_TYPE_STRU gaMachineType[MACHINE_NUM];
 
-extern QPixmap    *gpGlobalPixmaps[GLOBAL_BMP_NUM];
 void Write_sys_int(char *sysfilename,int value);
 
 #define PWMLCD_FILE       "/sys/class/backlight/pwm-backlight/brightness"

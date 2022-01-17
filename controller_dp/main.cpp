@@ -13,11 +13,8 @@
 #include <QTime>
 
 #include "ctrlapplication.h"
-#include "syszuxim.h"
-#include "syszuxpinyin.h"
 #include "cminterface.h"
 #include "exconfig.h"
-#include "deventfilter.h"
 
 CtrlApplication *gApp;
 
@@ -348,6 +345,40 @@ void DeleteExpiredData()
 
 }
 
+void outputMessage(QtMsgType type, const char *msg)
+{
+    static QMutex mutex;
+    mutex.lock();
+    QString text;
+    switch(type)
+    {
+    case QtDebugMsg:
+        text = QString("Debug:");
+        break;
+    case QtWarningMsg:
+        text = QString("Warning:");
+        break;
+    case QtCriticalMsg:
+        text = QString("Critical:");
+        break;
+    case QtFatalMsg:
+        text = QString("Fatal:");
+    }
+
+    QString current_date_time = QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss ddd");
+    QString current_date = QString("(%1)").arg(current_date_time);
+    QString message = QString("%1 %2 %3").arg(text).arg(msg).arg(current_date);
+ 
+    QFile file("log.txt");
+    file.open(QIODevice::WriteOnly | QIODevice::Append);
+    QTextStream text_stream(&file);
+    text_stream << message << "\r\n";
+    file.flush();
+    file.close();
+    mutex.unlock();
+ 
+}
+
 int main(int argc, char *argv[])
 {
 
@@ -359,9 +390,6 @@ int main(int argc, char *argv[])
     gApp = &a;
     gApp->setApplicationVersion(gAppVersion);
 
-    //ex
-    DEventFilter eventF;
-    a.installEventFilter(&eventF);
     //Register a custom type
     qRegisterMetaType<DNetworkData>("DNetworkData");
     qRegisterMetaType<DNetworkData>("DNetworkData&");
@@ -379,15 +407,7 @@ int main(int argc, char *argv[])
     QTextCodec::setCodecForTr(QTextCodec::codecForName("UTF-8"));
     QTextCodec::setCodecForCStrings(QTextCodec::codecForName("UTF-8"));
 
-#ifndef QT_WEBKIT
-    QWSInputMethod *im = new SyszuxIM();
-    QWSServer::setCurrentInputMethod(im);
-    //QWSServer::setCursorVisible(false);
-#endif
-
     a.installTranslators(gGlobalParam.MiscParam.iLan,true); // chinese
-
-    qDebug() << QSqlDatabase::drivers();
 
     QSqlDatabase db = QSqlDatabase::addDatabase("QSQLITE");
     QTextCodec::setCodecForLocale(QTextCodec::codecForLocale());

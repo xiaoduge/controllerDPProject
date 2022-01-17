@@ -109,7 +109,6 @@ typedef struct
 
 }EX_CCB;
 
-extern unsigned int gMachineFlow;
 extern EX_CCB  gEx_Ccb;
 
 extern SENSOR_RANGE gSensorRange;

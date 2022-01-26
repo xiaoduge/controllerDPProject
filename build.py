@@ -116,7 +116,7 @@ if __name__ == "__main__":
             os.chdir(buildPath)
             print("当前工作目录: %s " % os.getcwd())
 
-            ret = os.system("/opt/qt4.8.5/bin/qmake %s/controller_dp/controller.pro -r -spec qws/linux-arm-g++" % currentPath)
+            ret = os.system("/opt/qt4.8.5/bin/qmake %s/controller_NuZar/controller.pro -r -spec qws/linux-arm-g++" % currentPath)
             print("qmake return: %d" % ret)
             ret = os.system("make")
             print("make return: %d" % ret)

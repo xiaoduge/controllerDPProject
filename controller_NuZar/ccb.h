@@ -27,6 +27,7 @@
 #define TIMER_MINUTE 1
 
 #define MAX_HANDLER_NUM (APP_HAND_SET_MAX_NUMBER)
+#define VIRTUAL_HANDLER (0x07)
 
 #define MAX_RFREADER_NUM (APP_RF_READER_MAX_NUMBER)
 
@@ -833,6 +834,9 @@ public:
   DISPHANDLE DispCmdCancelWork(unsigned char *pucData, int iLength);
   DISPHANDLE DispCmdHaltProc();
   DISPHANDLE DispCmdEngProc(unsigned char *pucData, int iLength);
+  void DispStartKeyQtw();
+  void DispStopKeyQtw();
+  void DispKeyQtw();
   DISPHANDLE DispCmdTw(unsigned char *pucData, int iLength);
   DISPHANDLE DispCmdCir(unsigned char *pucData, int iLength);
   DISPHANDLE DispCmdEngCmdProc(unsigned char *pucData, int iLength);

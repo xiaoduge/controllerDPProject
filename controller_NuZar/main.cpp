@@ -11,6 +11,9 @@
 #include <QSqlDatabase>
 #include <QSqlQuery>
 #include <QTime>
+#include <QFile>
+#include <QDir>
+
 
 #include "ctrlapplication.h"
 #include "cminterface.h"
@@ -321,6 +324,64 @@ void preMainCalbrate(void)
 
 }
 
+bool copyDir(const QString &strFrom, const QString &strTo)
+{
+    QDir fromDir(strFrom);
+    
+    QDir toDir(strTo);
+    if(!toDir.exists())
+    {
+        if(!toDir.mkdir(strTo)) return false;
+    }
+    
+    QFileInfoList list = fromDir.entryInfoList(QDir::NoDotAndDotDot | QDir::Files | QDir::Dirs);
+    foreach(QFileInfo info, list)
+    {
+        if(info.isDir())
+        {
+            QString strDir = strTo + "/" + info.fileName();
+            QDir dir(strDir);
+            if(!dir.exists())
+            {
+                if(!dir.mkdir(strDir)) return false;
+            }
+            if(!copyDir(info.filePath(), strDir)) return false;
+        }
+        else
+        {
+            QString fromFile = strFrom + "/" + info.fileName();
+            QString toFile = strTo + "/" + info.fileName();
+            if(QFile::exists(toFile))
+            {
+                if(!QFile::remove(toFile)) return false;
+            }
+            if(QFile::copy(fromFile, toFile))
+            {
+                qDebug() << "copy: " << fromFile << " to " << toFile << "success";
+            }
+            else
+            {
+                return false;
+            }
+                
+        }
+    }
+    return true;
+}
+
+void copyWebDir()
+{
+    QDir dir("/media/mmcblk0p1/web");
+    if(dir.exists())
+    {
+        if(!copyDir("/media/mmcblk0p1/web", "/opt/shzn/web"))
+        {
+            qDebug() << "Failed to copy web file";
+        }
+    }
+}
+
+
 //2018.10.23 add, delete data two years ago
 void DeleteExpiredData()
 {
@@ -486,6 +547,7 @@ int main(int argc, char *argv[])
 
 
     DeleteExpiredData(); //删除两年前的数据
+    copyWebDir();
 
     MainWindow w;
 

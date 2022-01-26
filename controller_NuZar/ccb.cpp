@@ -3795,10 +3795,8 @@ void CCB::work_start_qtw_helper(WORK_ITEM_STRU *pWorkItem)
 
     CcbInitHandlerQtwMeas(iIndex);
 
-    /* Processing */
     CanCcbTransState4Pw(DISP_WORK_STATE_RUN,DISP_WORK_SUB_RUN_QTWING);
 
-    //2018.10.26 add
     if(aHandler[iIndex].iDevType == APP_DEV_HS_SUB_UP)
     {
         gEx_Ccb.Ex_Auto_Cir_Tick.ulUPAutoCirTick = ex_gulSecond; //UP Auto cir 60min
@@ -12576,12 +12574,15 @@ void CCB::CcbWorMsgProc(SAT_MSG_HEAD *pucMsg)
             int aResult[2];
 
             memcpy(aResult,pWorkMsg->aucData,sizeof(aResult));
-
+            
             aHandler[aResult[1]].bit1Qtw = aResult[0] == 0 ? 1 : 0;
 
             aHandler[aResult[1]].bit1PendingQtw = 0;
-
-            CanCcbSndQtwRspMsg(aResult[1],aResult[0]);
+            
+            if(aResult[1] < VIRTUAL_HANDLER)
+            {
+                CanCcbSndQtwRspMsg(aResult[1],aResult[0]);
+            }
 
             if (!aResult[0])
             {
@@ -15258,6 +15259,11 @@ DISPHANDLE CCB::DispCmdHaltProc(void)
 {
     DISPHANDLE handle;
 
+    if(CcbGetTwFlag())
+    {
+        CcbStopQtw();
+    }
+
     CcbCancelAllWork();
 
     handle = SearchWork(work_idle);
@@ -15292,6 +15298,56 @@ DISPHANDLE CCB::DispCmdEngProc(unsigned char *pucData, int iLength)
     }
     return DispCmdHaltProc();
 }
+
+void CCB::DispStartKeyQtw()
+{
+    if (DISP_WORK_STATE_RUN != curWorkState.iMainWorkState4Pw)
+    {
+        return;
+    }
+    else
+    {
+        if (CcbGetTwFlag() || CcbGetTwPendingFlag())
+        {
+            return;
+        }
+        else
+        {
+            QtwMeas.ulTotalFm = INVALID_FM_VALUE;
+            CcbInnerWorkStartQtw(VIRTUAL_HANDLER);
+        }
+    }
+
+}
+
+void CCB::DispStopKeyQtw()
+{
+    if (aHandler[VIRTUAL_HANDLER].bit1Qtw)
+    {
+        CcbInnerWorkStopQtw(VIRTUAL_HANDLER);
+    }
+}
+
+void CCB::DispKeyQtw()
+{
+    aHandler[VIRTUAL_HANDLER].iDevType = APP_DEV_HS_SUB_HP;
+    
+    if(aHandler[VIRTUAL_HANDLER].bit1Qtw)
+    {
+        if(!(ExeBrd.ucDinState & (1 << APP_EXE_DIN_IWP_KEY)))
+        {
+            DispStopKeyQtw();
+        }
+    }
+    else
+    {
+        if(ExeBrd.ucDinState & (1 << APP_EXE_DIN_IWP_KEY))
+        {
+            DispStartKeyQtw();
+        }
+    }
+}
+
 
 DISPHANDLE CCB::DispCmdTw(unsigned char *pucData, int iLength)
 {
@@ -15983,16 +16039,6 @@ void CCB::MainInitMsg()
    ExeBrd.ucDinState = 0XFF;
 
    ulAdapterAgingCount = 0XFFFFFF00;
-
-   // 20200803 add : WATER TYPE judgement according to Zhang Chunhe
-   /* 
-       G UP+EDI
-       U UP+RO
-       E EDI
-       R RO
-       PURIST UP
-       A UP+RO
-   */
    
    switch(gGlobalParam.iMachineType)
    {
@@ -16232,13 +16278,12 @@ void CCB::MainSecondTask4MainState()
     case DISP_WORK_STATE_RUN:
         switch(gGlobalParam.iMachineType)
         {
-        case MACHINE_UP: //2018.10.24 add
-        case MACHINE_RO: //2018.11.12 add , Automatic recovery of water production
+        case MACHINE_UP: 
+        case MACHINE_RO: 
         case MACHINE_RO_H:
         case MACHINE_EDI:
             if (bit1B2Full)
             {
-                // check report flag
                 if (!CcbGetPmObjState(1 << APP_EXE_PM2_NO))
                 {
                     /* Active Report Flag */
@@ -16252,8 +16297,7 @@ void CCB::MainSecondTask4MainState()
                 }
                 else
                 {
-                    /* check pressure */
-                    if (!(CcbConvert2Pm2SP(ExeBrd.aPMObjs[APP_EXE_PM2_NO].Value.ulV) >= B2_FULL))
+                    if (CcbConvert2Pm2SP(ExeBrd.aPMObjs[APP_EXE_PM2_NO].Value.ulV) < B2_FULL)
                     {
                         bit1B2Full = FALSE;
                     }
@@ -16279,42 +16323,36 @@ void CCB::MainSecondTask4MainState()
             }
             else
             {
-                /* check SP5 */
+                if (!bit1ProduceWater)
                 {
-                   /* check pressure */
-                    if (!bit1ProduceWater)
+                    if(haveB3())
                     {
-                        //2019.09.29 add
-                        if(haveB3())
+                        if ((CcbConvert2Pm2SP(ExeBrd.aPMObjs[APP_EXE_PM2_NO].Value.ulV) < CcbGetSp5())
+                             && (CcbConvert2Pm3SP(ExeBrd.aPMObjs[APP_EXE_PM3_NO].Value.ulV) > 50.0))
                         {
-                            if ((CcbConvert2Pm2SP(ExeBrd.aPMObjs[APP_EXE_PM2_NO].Value.ulV) < CcbGetSp5())
-                                 && (CcbConvert2Pm3SP(ExeBrd.aPMObjs[APP_EXE_PM3_NO].Value.ulV) > 50.0))
+                            /* start Nomal Run */
+                            if (DISP_WORK_SUB_IDLE == curWorkState.iSubWorkState)
                             {
-                                /* start Nomal Run */
-                                if (DISP_WORK_SUB_IDLE == curWorkState.iSubWorkState)
+                                if (!SearchWork(work_normal_run))
                                 {
-                                    if (!SearchWork(work_normal_run))
-                                    {
-                                        CcbInnerWorkRun();
-                                    }
-                                }
-                            }
-                        }//end 2019.9.29
-                        else
-                        {
-                            if (CcbConvert2Pm2SP(ExeBrd.aPMObjs[APP_EXE_PM2_NO].Value.ulV) < CcbGetSp5())
-                            {
-                                /* start Nomal Run */
-                                if (DISP_WORK_SUB_IDLE == curWorkState.iSubWorkState)
-                                {
-                                    if (!SearchWork(work_normal_run))
-                                    {
-                                        CcbInnerWorkRun();
-                                    }
+                                    CcbInnerWorkRun();
                                 }
                             }
                         }
-                   }
+                    }
+                    else
+                    {
+                        if (CcbConvert2Pm2SP(ExeBrd.aPMObjs[APP_EXE_PM2_NO].Value.ulV) < CcbGetSp5())
+                        {
+                            if (DISP_WORK_SUB_IDLE == curWorkState.iSubWorkState)
+                            {
+                                if (!SearchWork(work_normal_run))
+                                {
+                                    CcbInnerWorkRun();
+                                }
+                            }
+                        }
+                    }
                 }
             }   
 
@@ -16652,6 +16690,7 @@ void CCB::MainSecondTask()
 
     Ex_DispDecPressure(); //ex
 
+    DispKeyQtw();
 }
 
 void CCB::MainMinuteTask()

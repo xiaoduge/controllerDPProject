@@ -381,6 +381,7 @@ public:
     CCB   *m_pCcb;
 
     QMap <QString,DeviceInfo> m_DevMap;
+    QMap <int, QString> m_DevVerMap;
 
 public slots:    
     void onMainStartQtwTimer(int iValue);
@@ -442,6 +443,8 @@ private:
     void initRfid();
 
     void initSetPointCfg();
+    void initCalibrationCfg();
+    void initSysTestCfg();
     void initSystemCfgInfo();
 
     void saveHandler();
@@ -771,6 +774,21 @@ private:
     void printWorker(const ProductDataPrint &data);
     void printWorker(const AlarmPrint &data);
     void printWorker(const ServiceLogPrint & data);
+
+public:
+    //delete db table data;
+    bool deleteDbData(int index);
+    bool deleteDbAll();
+    bool deleteDbAlarm();
+    bool deleteDbGetWater();
+    bool deleteDbPWater();
+    bool deleteDbLog();
+    bool deleteDbConsumables();
+
+    bool deleteCfgFile(int index);
+    bool deleteInfoConfig();
+    bool deleteConfig();
+    bool deleteCaliParamConfig();
 
 };
 

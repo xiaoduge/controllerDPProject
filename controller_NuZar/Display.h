@@ -515,6 +515,7 @@ typedef struct
     int           iSoundMask;
     int           iNetworkMask;
     int           ulMisFlags;
+    int           ulExMisFlags;
 
     int           iTankUvOnTime;
     int           iAutoLogoutTime;

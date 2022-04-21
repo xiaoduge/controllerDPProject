@@ -70,6 +70,7 @@ typedef struct
 typedef struct
 {
     unsigned int ulUPAutoCirTick;
+    unsigned int ulHPAutoCirTick;
 }EX_AUTO_CIR_TICK;
 
 

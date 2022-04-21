@@ -482,6 +482,8 @@ typedef enum
      MACHINE_RO,      //NuZar R
      MACHINE_RO_H,    //NuZar H
      MACHINE_PURIST,  // NuZar Q
+     MACHINE_C,       //NuZar C
+     MACHINE_C_D,     //NuZar C+DI
      MACHINE_NUM,
 }MACHINE_TYPE_ENUM;
 

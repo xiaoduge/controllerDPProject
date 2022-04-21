@@ -37,8 +37,10 @@ void CRecordParams::updEcoInfo(int iIndex, ECO_INFO_STRU *info)
             switch(gGlobalParam.iMachineType)
             {
             case MACHINE_PURIST:
+            case MACHINE_C_D:
             case MACHINE_RO:
             case MACHINE_RO_H:
+            case MACHINE_C:
             case MACHINE_UP:
                 break;
             default:
@@ -59,6 +61,7 @@ void CRecordParams::updEcoInfo(int iIndex, ECO_INFO_STRU *info)
             {
             case MACHINE_RO:
             case MACHINE_RO_H:
+            case MACHINE_C:
             case MACHINE_UP:
                 if (m_pCcb->DispGetEdiQtwFlag() || m_pCcb->DispGetTankCirFlag())
                 {
@@ -76,12 +79,13 @@ void CRecordParams::updEcoInfo(int iIndex, ECO_INFO_STRU *info)
         float fResidue;
 
         if (m_pCcb->DispGetREJ(&fResidue)
-            && (MACHINE_PURIST != gGlobalParam.iMachineType))
+            && (MACHINE_PURIST != gGlobalParam.iMachineType)
+            && (MACHINE_C_D    != gGlobalParam.iMachineType))
         {
             m_historyInfo[RO_Rejection].value1 = fResidue;
         }
 
-        if(MACHINE_PURIST != gGlobalParam.iMachineType)
+        if((MACHINE_PURIST != gGlobalParam.iMachineType) && (MACHINE_C_D != gGlobalParam.iMachineType))
         {
             m_historyInfo[RO_Product].value1 = info->fQuality;
             m_historyInfo[RO_Product].value2 = info->fTemperature;
@@ -90,6 +94,7 @@ void CRecordParams::updEcoInfo(int iIndex, ECO_INFO_STRU *info)
             {
             case MACHINE_RO:
             case MACHINE_RO_H:
+            case MACHINE_C:
             case MACHINE_UP:
                 if(!(gGlobalParam.MiscParam.ulMisFlags & (1 << DISP_SM_HP_Water_Cir)))
                 {

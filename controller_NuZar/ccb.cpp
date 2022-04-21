@@ -723,6 +723,7 @@ void ConsumableInstaller::initPackConfig()
     {
     case MACHINE_UP:
     case MACHINE_PURIST:
+    case MACHINE_C_D:
         install_info.iRfid = APP_RFID_SUB_TYPE_UPACK_HPACK;
         install_info.strName = tr("U Pack");
         m_map[Type0].insert(DISP_U_PACK, install_info);
@@ -736,6 +737,7 @@ void ConsumableInstaller::initPackConfig()
     {
     case MACHINE_UP:
     case MACHINE_PURIST:
+    case MACHINE_C_D:
         install_info.iRfid = APP_RFID_SUB_TYPE_HPACK_ATPACK;
         install_info.strName = tr("H Pack");
         m_map[Type0].insert(DISP_H_PACK, install_info);
@@ -751,6 +753,7 @@ void ConsumableInstaller::initPackConfig()
     case MACHINE_EDI:
     case MACHINE_RO:
     case MACHINE_RO_H:
+    case MACHINE_C:
         install_info.iRfid = APP_RFID_SUB_TYPE_PPACK_CLEANPACK;
         install_info.strName = tr("P Pack");
         m_map[Type0].insert(DISP_P_PACK, install_info);
@@ -762,10 +765,7 @@ void ConsumableInstaller::initPackConfig()
 
     switch(gGlobalParam.iMachineType)
     {
-    case MACHINE_UP:
     case MACHINE_EDI:
-    case MACHINE_RO:
-    case MACHINE_RO_H:
         install_info.iRfid = APP_RFID_SUB_TYPE_ROPACK_OTHERS;
         install_info.strName = tr("AC Pack");
         m_map[Type0].insert(DISP_AC_PACK, install_info);
@@ -790,6 +790,7 @@ void ConsumableInstaller::initOtherConfig()
     case MACHINE_EDI:
     case MACHINE_RO:
     case MACHINE_RO_H:
+    case MACHINE_C:
         install_info.iRfid = APP_RFID_SUB_TYPE_ROPACK_OTHERS;
         install_info.strName = tr("RO Membrane");
         m_map[Type1].insert(DISP_MACHINERY_RO_MEMBRANE, install_info);
@@ -803,6 +804,7 @@ void ConsumableInstaller::initOtherConfig()
     {
     case MACHINE_UP:
     case MACHINE_PURIST:
+    case MACHINE_C_D:
         install_info.iRfid = APP_RFID_SUB_TYPE_ROPACK_OTHERS;
         if(0 == gAdditionalCfgParam.productInfo.iCompany)
         {
@@ -825,7 +827,9 @@ void ConsumableInstaller::initOtherConfig()
     case MACHINE_EDI:
     case MACHINE_RO:
     case MACHINE_RO_H:
+    case MACHINE_C:
     case MACHINE_PURIST:
+    case MACHINE_C_D:
         install_info.iRfid = APP_RFID_SUB_TYPE_ROPACK_OTHERS;
         install_info.strName = tr("Final Fliter A"); //0.2um
         m_map[Type1].insert(DISP_T_A_FILTER, install_info);
@@ -838,6 +842,7 @@ void ConsumableInstaller::initOtherConfig()
     switch(gGlobalParam.iMachineType)
     {
     case MACHINE_EDI:
+    case MACHINE_C_D:
         install_info.iRfid = APP_RFID_SUB_TYPE_ROPACK_OTHERS;
         install_info.strName = tr("254 UV Lamp");
         m_map[Type1].insert(DISP_N1_UV, install_info);
@@ -864,6 +869,7 @@ void ConsumableInstaller::initOtherConfig()
     case MACHINE_EDI:
     case MACHINE_RO:
     case MACHINE_RO_H:
+    case MACHINE_C:
         install_info.iRfid = APP_RFID_SUB_TYPE_ROPACK_OTHERS;
         install_info.strName = tr("Tank UV Lamp");
         m_map[Type1].insert(DISP_N3_UV, install_info);
@@ -879,6 +885,7 @@ void ConsumableInstaller::initOtherConfig()
     case MACHINE_EDI:
     case MACHINE_RO:
     case MACHINE_RO_H:
+    case MACHINE_C:
         install_info.iRfid = APP_RFID_SUB_TYPE_ROPACK_OTHERS;
         install_info.strName = tr("Tank Vent Filter");
         m_map[Type1].insert(DISP_W_FILTER, install_info);
@@ -1415,7 +1422,8 @@ void CCB::CcbFiniHandlerQtwMeas(int iIndex)
 
     pQtwMeas = &QtwMeas;
 
-    pQtwMeas->ulEndTm   = pQtwMeas->ulEndTm;
+    pQtwMeas->ulEndTm   = time(NULL);
+    //pQtwMeas->ulEndTm   = pQtwMeas->ulEndTm;
 }
 
 
@@ -3438,6 +3446,7 @@ void CCB::work_stop_pw(void *para)
     case MACHINE_UP:
     case MACHINE_RO:
     case MACHINE_RO_H:
+    case MACHINE_C:
         iTmp  = (1 << APP_EXE_I1_NO)|(1<<APP_EXE_I2_NO);
         iRet = pCcb->CcbUpdateIAndBs(pWorkItem->id, 0, iTmp, 0);
         if (iRet )
@@ -3447,6 +3456,7 @@ void CCB::work_stop_pw(void *para)
         }
         break;
     case MACHINE_PURIST:
+    case MACHINE_C_D:
         break;
     }
     //end
@@ -3802,9 +3812,15 @@ void CCB::work_start_qtw_helper(WORK_ITEM_STRU *pWorkItem)
         gEx_Ccb.Ex_Auto_Cir_Tick.ulUPAutoCirTick = ex_gulSecond; //UP Auto cir 60min
     }
 
+    if((gGlobalParam.iMachineType == MACHINE_C) && (aHandler[iIndex].iDevType == APP_DEV_HS_SUB_HP))
+    {
+        gEx_Ccb.Ex_Auto_Cir_Tick.ulHPAutoCirTick = ex_gulSecond; //NuZar C HP Auto cir 60min
+    }
+
     switch(gGlobalParam.iMachineType)
     {
     case MACHINE_PURIST:
+    case MACHINE_C_D:
         if (haveB2())
         {
             iRet = CcbGetPmValue(pWorkItem->id,APP_EXE_PM2_NO,1);
@@ -3823,13 +3839,12 @@ void CCB::work_start_qtw_helper(WORK_ITEM_STRU *pWorkItem)
             }
         }
 
-        if (haveB2())
+        iTmp = (1<<APP_EXE_E4_NO)|(1<<APP_EXE_E6_NO)|(1<<APP_EXE_C2_NO)|(1<<APP_EXE_N2_NO);
+        
+        if (!haveB2())
         {
-            iTmp = (1<<APP_EXE_E4_NO)|(1<<APP_EXE_E6_NO)|(1<<APP_EXE_C2_NO)|(1<<APP_EXE_N2_NO);
-        }
-        else
-        {
-            iTmp = (1<<APP_EXE_E4_NO)|(1<<APP_EXE_E6_NO)|(1<<APP_EXE_E10_NO)|(1<<APP_EXE_C2_NO)|(1<<APP_EXE_N2_NO);
+
+            iTmp |= (1<<APP_EXE_E10_NO);
         }
 
         iRet = CcbUpdateSwitch(pWorkItem->id, 0, ulHyperTwMask, iTmp);
@@ -3840,7 +3855,7 @@ void CCB::work_start_qtw_helper(WORK_ITEM_STRU *pWorkItem)
             return ;
         }
 
-        if ((ulQtwSwMask & (1 << APP_EXE_C2_NO))
+        if ((iTmp & (1 << APP_EXE_C2_NO))
            && bit1CirSpeedAdjust)
         {
             CcbC2Regulator(pWorkItem->id,24,TRUE);
@@ -3867,6 +3882,11 @@ void CCB::work_start_qtw_helper(WORK_ITEM_STRU *pWorkItem)
         }
         iCurTwIdx = iIndex;
         work_qtw_succ(iIndex);
+        if(QtwMeas.ulTotalFm != INVALID_FM_VALUE)
+        {
+            int iValue = (QtwMeas.ulTotalFm  * 1000) / (gGlobalParam.Caliparam.pc[ DISP_PC_COFF_S1].fk * 1000/60);
+            emit startQtwTimer(iValue);
+        }
         break;
     default:
         /* check B2 & get B2 reports from exe */
@@ -3898,7 +3918,15 @@ void CCB::work_start_qtw_helper(WORK_ITEM_STRU *pWorkItem)
         }
         else
         {
-            iTmp = (1<<APP_EXE_E4_NO)|(1<<APP_EXE_E6_NO)|(1<<APP_EXE_C2_NO);
+            if(gGlobalParam.iMachineType != MACHINE_C)
+            {
+                iTmp = (1<<APP_EXE_E4_NO)|(1<<APP_EXE_C2_NO);
+            }
+            else
+            {
+                iTmp = (1<<APP_EXE_E4_NO)|(1<<APP_EXE_C2_NO)|(1<<APP_EXE_N2_NO);
+            }
+            
             ulQtwSwMask = ulNormalTwMask;
         }
         
@@ -3921,11 +3949,13 @@ void CCB::work_start_qtw_helper(WORK_ITEM_STRU *pWorkItem)
         switch(gGlobalParam.iMachineType)
         {
         case MACHINE_PURIST:
+        case MACHINE_C_D:
             iTmp |= (1 << APP_EXE_I2_NO);
             break;
         case MACHINE_UP:
         case MACHINE_RO:
         case MACHINE_RO_H:
+        case MACHINE_C:
             iTmp |= (1 << APP_EXE_I3_NO);
             break;
         default:
@@ -4034,11 +4064,13 @@ void CCB::work_stop_qtw(void *para)
     switch(gGlobalParam.iMachineType)
     {
     case MACHINE_PURIST:
+    case MACHINE_C_D:
         iTmp |= (1 << APP_EXE_I2_NO);
         break;
     case MACHINE_UP:
     case MACHINE_RO:
     case MACHINE_RO_H:
+    case MACHINE_C:
         iTmp |= (1 << APP_EXE_I3_NO);
         break;
     default:
@@ -4191,12 +4223,16 @@ void CCB::work_start_cir_helper(WORK_ITEM_STRU *pWorkItem)
         }  
     }
 
-    //2018.10.26 add
     if(iCirType == CIR_TYPE_UP)
     {
         gEx_Ccb.Ex_Auto_Cir_Tick.ulUPAutoCirTick = ex_gulSecond; //UP Auto cir 60min
     }
 
+    if((gGlobalParam.iMachineType == MACHINE_C) && (iCirType == CIR_TYPE_HP))
+    {
+        gEx_Ccb.Ex_Auto_Cir_Tick.ulHPAutoCirTick = ex_gulSecond; //NuZar C HP Auto cir 60min
+    }
+        
     switch(iCirType)
     {
     case CIR_TYPE_UP:
@@ -4227,7 +4263,7 @@ void CCB::work_start_cir_helper(WORK_ITEM_STRU *pWorkItem)
                  work_cir_fail(pWorkItem->id);        
                  return ;
              }
-             //Ex FM1 report
+
              iTmp = (1 << APP_FM_FM1_NO); /* start flow report */
 
              iRet = CcbUpdateFms(pWorkItem->id,0,iTmp,iTmp);
@@ -4238,7 +4274,6 @@ void CCB::work_start_cir_helper(WORK_ITEM_STRU *pWorkItem)
                  work_cir_fail(pWorkItem->id);
                  return ;
              }
-             //end
 
              iTocStage      = APP_PACKET_EXE_TOC_STAGE_FLUSH1;
              iTocStageTimer = 0;
@@ -4248,7 +4283,6 @@ void CCB::work_start_cir_helper(WORK_ITEM_STRU *pWorkItem)
          }
          else
          {
-//             iTmp = (1 << APP_EXE_E5_NO) | (1 << APP_EXE_E6_NO) | (1 << APP_EXE_C2_NO)| (1 << APP_EXE_N2_NO);
              iTmp = (1 << APP_EXE_E5_NO) | (1 << APP_EXE_E6_NO) | (1 << APP_EXE_C2_NO);
              iRet = CcbUpdateSwitch(pWorkItem->id,0,ulCirMask,iTmp);
              if (iRet )
@@ -4274,7 +4308,6 @@ void CCB::work_start_cir_helper(WORK_ITEM_STRU *pWorkItem)
                  return ;
              }
 
-             //Ex FM1 report
              iTmp = (1 << APP_FM_FM1_NO); /* start flow report */
 
              iRet = CcbUpdateFms(pWorkItem->id,0,iTmp,iTmp);
@@ -4285,8 +4318,7 @@ void CCB::work_start_cir_helper(WORK_ITEM_STRU *pWorkItem)
                  work_cir_fail(pWorkItem->id);
                  return ;
              }
-             //end
-             //EX
+
              for (iLoop = 0; iLoop < 3; iLoop++) //延时启动N2
              {
                  iRet = CcbWorkDelayEntry(pWorkItem->id,1000,CcbDelayCallBack);
@@ -4297,6 +4329,7 @@ void CCB::work_start_cir_helper(WORK_ITEM_STRU *pWorkItem)
                      return;
                  }
              }
+ 
              iTmp = (1 << APP_EXE_E5_NO) | (1 << APP_EXE_E6_NO) | (1 << APP_EXE_C2_NO)| (1 << APP_EXE_N2_NO);
              iRet = CcbUpdateSwitch(pWorkItem->id,0,ulCirMask,iTmp);
              
@@ -4306,78 +4339,100 @@ void CCB::work_start_cir_helper(WORK_ITEM_STRU *pWorkItem)
          break;
     case CIR_TYPE_HP:
         {
-            /* check B2 & get B2 reports from exe */
-            iRet = CcbGetPmValue(pWorkItem->id,APP_EXE_PM2_NO,1);
-            if (iRet )
+            if(gGlobalParam.iMachineType != MACHINE_C)
             {
-                LOG(VOS_LOG_WARNING,"CcbGetPmValue Fail %d",iRet);  
-            
-                work_cir_fail(pWorkItem->id);
-            
-                return ;
-            }
-            if (haveB2())
-            {
-            
-                if (CcbConvert2Pm2SP(ExeBrd.aPMObjs[APP_EXE_PM2_NO].Value.ulV) < CcbGetSp6())
+                iRet = CcbGetPmValue(pWorkItem->id,APP_EXE_PM2_NO,1);
+                if (iRet )
                 {
-                    bit1B2Empty = TRUE;
-                
+                    LOG(VOS_LOG_WARNING,"CcbGetPmValue Fail %d",iRet);  
                     work_cir_fail(pWorkItem->id);
-                    
-                    return;
+                    return ;
+                }
+                if (haveB2())
+                {
+                    if (CcbConvert2Pm2SP(ExeBrd.aPMObjs[APP_EXE_PM2_NO].Value.ulV) < CcbGetSp6())
+                    {
+                        bit1B2Empty = TRUE;
+                        work_cir_fail(pWorkItem->id);
+                        return;
+                    }
+                }
+                
+                iTmp = (1 << APP_EXE_E4_NO) | (1 << APP_EXE_E6_NO) | (1 << APP_EXE_C2_NO);
+
+                iRet = CcbUpdateSwitch(pWorkItem->id,0,ulCirMask ,iTmp);
+                if (iRet )
+                {
+                    LOG(VOS_LOG_WARNING,"CcbUpdateSwitch Fail %d",iRet);    
+                    work_cir_fail(pWorkItem->id);
+                    return ;
+                }
+
+                if ((ulCirMask & (1 << APP_EXE_C2_NO))
+                && bit1CirSpeedAdjust)
+                {
+                    CcbC2Regulator(pWorkItem->id,8,TRUE);
                 }
             }
-            
-             iTmp = (1 << APP_EXE_E4_NO) | (1 << APP_EXE_E6_NO) | (1 << APP_EXE_C2_NO);
-     
-             iRet = CcbUpdateSwitch(pWorkItem->id,0,ulCirMask ,iTmp);
-             if (iRet )
-             {
-                 LOG(VOS_LOG_WARNING,"CcbUpdateSwitch Fail %d",iRet);    
-                 work_cir_fail(pWorkItem->id);
-                 return ;
-             }
+            else
+            {
+                iTmp = (1 << APP_EXE_E5_NO) | (1 << APP_EXE_E6_NO) | (1 << APP_EXE_C2_NO);
+                iRet = CcbUpdateSwitch(pWorkItem->id,0,ulCirMask,iTmp);
+                if (iRet )
+                {
+                     LOG(VOS_LOG_WARNING,"CcbUpdateSwitch Fail %d",iRet);    
+                     work_cir_fail(pWorkItem->id);
+                     return ;
+                }
 
-     
-             if ((ulCirMask & (1 << APP_EXE_C2_NO))
+                if ((ulCirMask & (1 << APP_EXE_C2_NO))
                 && bit1CirSpeedAdjust)
-             {
-                 CcbC2Regulator(pWorkItem->id,8,TRUE);
-             }
-             
-             iTmp = (1 << APP_EXE_I4_NO);
+                {
+                    CcbC2Regulator(pWorkItem->id,8,TRUE);
+                }
 
-             switch (gGlobalParam.iMachineType)
-             {
-             case MACHINE_UP:
-             case MACHINE_RO:
-             case MACHINE_RO_H:
+                for (iLoop = 0; iLoop < 3; iLoop++) //延时启动N2
+                {
+                    iRet = CcbWorkDelayEntry(pWorkItem->id,1000,CcbDelayCallBack);
+                    if (iRet )
+                    {
+                     LOG(VOS_LOG_WARNING,"CcbModbusWorkEntry Fail %d",iRet);
+                     work_cir_fail(pWorkItem->id);
+                     return;
+                    }
+                }
+                iTmp = (1 << APP_EXE_E5_NO) | (1 << APP_EXE_E6_NO) | (1 << APP_EXE_C2_NO)| (1 << APP_EXE_N2_NO);
+                iRet = CcbUpdateSwitch(pWorkItem->id,0,ulCirMask,iTmp);
+            }
+            
+            iTmp = (1 << APP_EXE_I4_NO);
+
+            switch (gGlobalParam.iMachineType)
+            {
+            case MACHINE_UP:
+            case MACHINE_RO:
+            case MACHINE_RO_H:
+            case MACHINE_C:
                 iTmp |= (1 << APP_EXE_I3_NO); // && haveHPCir())
                 break;
-             }
+            }
 
-             iRet = CcbUpdateIAndBs(pWorkItem->id,0,iTmp,iTmp);
-             if (iRet )
-             {
-                 LOG(VOS_LOG_WARNING,"CcbUpdateIAndBs Fail %d",iRet);    
-                 /* notify ui (late implemnt) */
-                 work_cir_fail(pWorkItem->id);        
-                 return ;
-             } 
+            iRet = CcbUpdateIAndBs(pWorkItem->id,0,iTmp,iTmp);
+            if (iRet )
+            {
+                LOG(VOS_LOG_WARNING,"CcbUpdateIAndBs Fail %d",iRet);    
+                work_cir_fail(pWorkItem->id);        
+                return ;
+            } 
 
-            iTmp = (1 << APP_FM_FM1_NO); /* start flow report */
-            
+            iTmp = (1 << APP_FM_FM1_NO); 
             iRet = CcbUpdateFms(pWorkItem->id,0,iTmp,iTmp);
             if (iRet )
             {
                 LOG(VOS_LOG_WARNING,"CcbUpdateFms Fail %d",iRet);    
-                /* notify ui (late implemnt) */
                 work_cir_fail(pWorkItem->id);        
                 return ;
-            }
-            
-             
+            } 
         }
         break;
     }
@@ -4478,6 +4533,7 @@ void CCB::work_stop_cir(void *para)
     case MACHINE_UP:
     case MACHINE_RO:
     case MACHINE_RO_H:
+    case MACHINE_C:
         iTmp |= (1 << APP_EXE_I3_NO); // && haveHPCir())
         break;
     }
@@ -4791,7 +4847,11 @@ void CCB::CanCcbExeReset()
 {
     ExeBrd.ulEcoValidFlags = 0;
     ExeBrd.ulPmValidFlags = 0;
-    ExeBrd.ucDinState = 0;
+    if(ExeBrd.ucDinState == 0XFF)
+    {
+        ExeBrd.ucDinState = 0;
+    }
+   // ExeBrd.ucDinState = 0;
 }
 
 void CCB::CanCcbFMReset()
@@ -5364,7 +5424,7 @@ void CCB::checkB2ToProcessB2Full()
             }
         }
         
-        if(MACHINE_PURIST == gGlobalParam.iMachineType)
+        if((MACHINE_PURIST == gGlobalParam.iMachineType) || (MACHINE_C_D == gGlobalParam.iMachineType))
         {
             if (fValue >= B2_FULL)
             {
@@ -5570,7 +5630,7 @@ void CCB::Check_RO_EDI_Alarm(int iEcoId)
     switch(iEcoId)
     {
     case 1:
-        if(gGlobalParam.iMachineType != MACHINE_PURIST)
+        if((gGlobalParam.iMachineType != MACHINE_PURIST) && (gGlobalParam.iMachineType != MACHINE_C_D))
         {
             fRej = CcbCalcREJ();
             if (fRej < CcbGetSp2())
@@ -5697,8 +5757,6 @@ void CCB::CanCcbEcoMeasurePostProcess(int iEcoId)
                                 if (!bit1I54Cir )
                                 {
                                     bit1I54Cir = TRUE;
-
-                                    /* Notify Handler , late implement */
                                 }
                             }  
                             else
@@ -5706,8 +5764,6 @@ void CCB::CanCcbEcoMeasurePostProcess(int iEcoId)
                                 if (bit1I54Cir) 
                                 {
                                     bit1I54Cir = FALSE;
-                                    
-                                    /* Notify Handler , late implement */
                                 }
                             }
 
@@ -5795,6 +5851,10 @@ void CCB::CanCcbEcoMeasurePostProcess(int iEcoId)
                                     }
                                 }
                             }
+                            else if(gGlobalParam.iMachineType == MACHINE_C)
+                            {
+                                //do nothing
+                            }
                             else
                             {
                                 if (iEcoId == APP_EXE_I4_NO)
@@ -5819,7 +5879,8 @@ void CCB::CanCcbEcoMeasurePostProcess(int iEcoId)
                 case APP_EXE_I3_NO:
                     if((gGlobalParam.iMachineType == MACHINE_UP) 
                         || (gGlobalParam.iMachineType == MACHINE_RO) 
-                        || (gGlobalParam.iMachineType == MACHINE_RO_H))
+                        || (gGlobalParam.iMachineType == MACHINE_RO_H)
+                        || (gGlobalParam.iMachineType == MACHINE_C))
                     {
                         float fValue = ExeBrd.aEcoObjs[APP_EXE_I3_NO].Value.eV.fWaterQ;
                         bit1I44Nw = fValue >= CcbGetSp10() ? TRUE : FALSE ;
@@ -7546,8 +7607,16 @@ int CCB::CanCcbAfDataClientRpt4ExeBoard(MAIN_CANITF_MSG_STRU *pCanItfMsg)
                     case 2:
                         ExeBrd.aEcoObjs[pEco->ucId].Value.eV.fWaterQ *= gGlobalParam.Caliparam.pc[DISP_PC_COFF_EDI_WATER_CONDUCT].fk;
                         ExeBrd.aEcoObjs[pEco->ucId].Value.eV.usTemp *= gGlobalParam.Caliparam.pc[DISP_PC_COFF_EDI_WATER_TEMP].fk;
-                        if(ExeBrd.aEcoObjs[pEco->ucId].Value.eV.fWaterQ > 16)
-                            ExeBrd.aEcoObjs[pEco->ucId].Value.eV.fWaterQ = 16;
+                        if(gGlobalParam.iMachineType != MACHINE_C)
+                        {
+                            if(ExeBrd.aEcoObjs[pEco->ucId].Value.eV.fWaterQ > 16)
+                                ExeBrd.aEcoObjs[pEco->ucId].Value.eV.fWaterQ = 16;
+                        }
+                        else
+                        {
+                            if(ExeBrd.aEcoObjs[pEco->ucId].Value.eV.fWaterQ > 18.2)
+                                ExeBrd.aEcoObjs[pEco->ucId].Value.eV.fWaterQ = 18.2;
+                        }
                         break;
                     case 3:
                         ExeBrd.aEcoObjs[pEco->ucId].Value.eV.fWaterQ *= gGlobalParam.Caliparam.pc[DISP_PC_COFF_TOC_WATER_CONDUCT].fk;
@@ -7582,6 +7651,7 @@ int CCB::CanCcbAfDataClientRpt4ExeBoard(MAIN_CANITF_MSG_STRU *pCanItfMsg)
                     case MACHINE_UP:
                     case MACHINE_RO:
                     case MACHINE_RO_H:
+                    case MACHINE_C:
                         if(!haveHPCir() && (APP_EXE_I2_NO == pEco->ucId))
                         {
                             iEco4ZigbeeMask |= 0x1 << APP_EXE_I4_NO;
@@ -8039,6 +8109,69 @@ int CCB::CcbScanRfid(int iIndex,int iTime)
     return 0;
 }
 
+void CCB::CanCcbAfDevQueryMsg(int mask)
+{
+    if (iDevRequest & mask)
+    {
+        sp_thread_mutex_lock  ( &m_Ipc4DevMgr.mutex );
+        sp_thread_cond_signal ( &m_Ipc4DevMgr.cond  );
+        sp_thread_mutex_unlock( &m_Ipc4DevMgr.mutex );
+    }
+    
+}
+
+int CCB::CcbQueryDeviceVersion(int iTime, int addr)
+{
+    int iRet;
+
+    struct timeval now;
+    struct timespec outtime;
+    
+    sp_thread_mutex_lock( &m_Ipc4DevMgr.mutex );
+
+    {
+        IAP_CAN_CMD_STRU Cmd;
+        if(2 == addr)
+        {
+            Cmd.iCanChl = APP_CAN_CHL_INNER;
+        }
+        else
+        {
+            Cmd.iCanChl = APP_CAN_CHL_OUTER;
+        }
+        
+        Cmd.ucCmd       = SBL_QUERY_VERSION_CMD;
+        Cmd.iPayLoadLen = 0;
+        Cmd.ulCanId     = addr;
+        iRet = DispIapEntry(&Cmd);
+        if (0 != iRet)
+        {
+            sp_thread_mutex_unlock( &m_Ipc4DevMgr.mutex );
+            return -1;
+        }
+    }
+
+    iDevRequest = 0X2;
+    
+    gettimeofday(&now, NULL);
+    outtime.tv_sec  = now.tv_sec + iTime/1000;
+    outtime.tv_nsec = (now.tv_usec + (iTime  % 1000)*1000)* 1000;
+
+    iRet = sp_thread_cond_timedwait( &m_Ipc4DevMgr.cond, &m_Ipc4DevMgr.mutex ,&outtime);//ylf: thread sleep here
+    if(ETIMEDOUT == iRet)
+    {
+        iDevRequest &= ~0X2;
+        sp_thread_mutex_unlock( &m_Ipc4DevMgr.mutex );
+        return -1;
+    }
+    
+    iDevRequest &= ~0X2;
+    sp_thread_mutex_unlock( &m_Ipc4DevMgr.mutex );
+
+    return 0;
+
+}
+
 int CCB::CcbQueryDevice(int iTime)
 {
     int iRet;
@@ -8075,7 +8208,8 @@ int CCB::CcbQueryDevice(int iTime)
             return -1;
         }
     }
-    
+
+    iDevRequest = 0X1;
     gettimeofday(&now, NULL);
     outtime.tv_sec  = now.tv_sec + iTime/1000;
     outtime.tv_nsec = (now.tv_usec + (iTime  % 1000)*1000)* 1000;
@@ -8083,10 +8217,12 @@ int CCB::CcbQueryDevice(int iTime)
     iRet = sp_thread_cond_timedwait( &m_Ipc4DevMgr.cond, &m_Ipc4DevMgr.mutex ,&outtime);//ylf: thread sleep here
     if(ETIMEDOUT == iRet)
     {
+        iDevRequest &= ~0X1;
         sp_thread_mutex_unlock( &m_Ipc4DevMgr.mutex );
         return -1;
     }
-
+    
+    iDevRequest &= ~0X1;
     sp_thread_mutex_unlock( &m_Ipc4DevMgr.mutex );
 
     return 0;
@@ -8663,6 +8799,7 @@ void CCB::DispSndHoEco(int iMask)
         case MACHINE_UP:
         case MACHINE_RO:
         case MACHINE_RO_H:
+        case MACHINE_C:
             if(haveHPCir())
             {
                 pEco->ev = ExeBrd.aEcoObjs[APP_EXE_I3_NO].Value.eV;
@@ -9080,6 +9217,7 @@ int CCB::CanCcbAfDataHOQtwReqMsg(MAIN_CANITF_MSG_STRU *pCanItfMsg)
 
     LOG(VOS_LOG_WARNING,"Hdl%d: Enter %s Act%d Vol%d",ucIndex,__FUNCTION__,pQtwReq->ucAction,pQtwReq->ulVolumn);    
 
+    qDebug() << "dcj: index: " << ucIndex << " Action: " << pQtwReq->ucAction;
     if (ucIndex >=  MAX_HANDLER_NUM)
     {
         ucResult = APP_PACKET_HO_ERROR_CODE_UNKNOW;
@@ -9105,6 +9243,12 @@ int CCB::CanCcbAfDataHOQtwReqMsg(MAIN_CANITF_MSG_STRU *pCanItfMsg)
                     if (!aHandler[ucIndex].bit1Qtw)
                     {
                         ucResult = APP_PACKET_HO_ERROR_CODE_UNSUPPORT; // current only support one tw
+                    }
+                    else
+                    {
+                        ucResult = APP_PACKET_HO_ERROR_CODE_SUCC;
+                        CcbInnerWorkStopQtw(ucIndex);
+                        pQtwReq->ucAction = APP_PACKET_HO_ACTION_STOP;
                     }
                }
                else if(CcbGetTwPendingFlag())
@@ -9959,8 +10103,8 @@ int CCB::CanCcbAfDataHOExtConfigQryReqMsg(MAIN_CANITF_MSG_STRU *pCanItfMsg)
                     break;
                 case PARAM_DO_EXT_FLAGS:
                     {
-                        uint32_t outFlags = 0;
-                        
+                        uint32_t outFlags = gGlobalParam.MiscParam.ulExMisFlags;
+#if 0
                         NIF nif;
                         
                         parseNetInterface(&nif);
@@ -9969,7 +10113,7 @@ int CCB::CanCcbAfDataHOExtConfigQryReqMsg(MAIN_CANITF_MSG_STRU *pCanItfMsg)
                         {
                           outFlags |= 1 << DISP_EXT_STATIC_IP;
                         }
-
+#endif
                         memcpy(pOutMsg, &outFlags,sizeof(uint32_t));
                        
                         pOutMsg += 4;                        
@@ -9998,13 +10142,15 @@ int CCB::CanCcbAfDataHOExtConfigQryReqMsg(MAIN_CANITF_MSG_STRU *pCanItfMsg)
                     {
                         pOutMsg[0] = gGlobalParam.PmParam.aiBuckType[DISP_PM_PM2];
                         pOutMsg += 1;
-                      
-                        memcpy(pOutMsg, &gSensorRange.fPureSRange,sizeof(float));
+
+                        float fRang = gSensorRange.fPureSRange * 10; //bar -> m
+                        memcpy(pOutMsg, &fRang,sizeof(float));
                         pOutMsg += sizeof(float);
                         memcpy(pOutMsg, &gGlobalParam.PmParam.afCap[DISP_PM_PM2],sizeof(float));
                         pOutMsg += sizeof(float);
                         memcpy(pOutMsg, &gGlobalParam.PmParam.afDepth[DISP_PM_PM2],sizeof(float));
                         pOutMsg += sizeof(float);
+                        
                     }
                     break;
                 }                
@@ -10055,7 +10201,7 @@ int CCB::CanCcbAfDataHOExtConfigSetReqMsg(MAIN_CANITF_MSG_STRU *pCanItfMsg)
         bool bPm = false;
         bool bSensor = false;
         uint32_t ulEthIp = 0;
-        uint32_t ulExtFlags = 0;
+        uint32_t ulExtFlags = gGlobalParam.MiscParam.ulExMisFlags;
 
         for (int iLoop = 0; iLoop < PARAM_DO_NUM; iLoop++)
         {
@@ -10144,6 +10290,8 @@ int CCB::CanCcbAfDataHOExtConfigSetReqMsg(MAIN_CANITF_MSG_STRU *pCanItfMsg)
                 case PARAM_DO_EXT_FLAGS:
                     {
                         memcpy(&ulExtFlags,pInMsg,sizeof(uint32_t));
+                        gGlobalParam.MiscParam.ulExMisFlags = ulExtFlags;
+                        
                         
                         pInMsg += 4;                        
                     }
@@ -10179,7 +10327,7 @@ int CCB::CanCcbAfDataHOExtConfigSetReqMsg(MAIN_CANITF_MSG_STRU *pCanItfMsg)
                         memcpy(&fRange,pInMsg,sizeof(float));
                         pInMsg  += sizeof(float);
 
-                        gSensorRange.fPureSRange = fRange;
+                        gSensorRange.fPureSRange = fRange / 10; //m -> bar
 
                         bPm     = true;
                         bSensor = true;
@@ -10220,11 +10368,6 @@ int CCB::CanCcbAfDataHOExtConfigSetReqMsg(MAIN_CANITF_MSG_STRU *pCanItfMsg)
             CcbSndAfCanCmd(pCanItfMsg->iCanChl,ulCanId,SAPP_CMD_DATA,buf,iPayLoad);
 
             // save param
-            {
-                DISP_MISC_SETTING_STRU  &MiscParam = gGlobalParam.MiscParam;  
-                MainSaveMiscParam(gGlobalParam.iMachineType, MiscParam);
-            }
-            
             {
                 DISP_SUB_MODULE_SETTING_STRU  smParam = gGlobalParam.SubModSetting;
                 if(DISP_WATER_BARREL_TYPE_NO == gGlobalParam.PmParam.aiBuckType[DISP_PM_PM2])
@@ -10307,9 +10450,12 @@ int CCB::CanCcbAfDataHOExtConfigSetReqMsg(MAIN_CANITF_MSG_STRU *pCanItfMsg)
                 }
 
             }
-            
-        }
 
+            {
+                DISP_MISC_SETTING_STRU  &MiscParam = gGlobalParam.MiscParam;  
+                MainSaveMiscParam(gGlobalParam.iMachineType, MiscParam);
+            }
+        }
     }
     return 0;
 }
@@ -12637,7 +12783,14 @@ void CCB::CcbWorMsgProc(SAT_MSG_HEAD *pucMsg)
 
                 switch(gGlobalParam.iMachineType)
                 {
+                case MACHINE_C:
+                    if (!SearchWork(work_start_cir))
+                    {
+                        CcbInnerWorkStartCir(CIR_TYPE_HP);
+                    }  
+                    break;
                 case MACHINE_PURIST:
+                case MACHINE_C_D:
                     break;
                 default:
                     /* start circulation if any */
@@ -13560,6 +13713,7 @@ void CCB::work_run_comm_proc(WORK_ITEM_STRU *pWorkItem, bool bInit)
     case MACHINE_UP:
     case MACHINE_RO:    
     case MACHINE_RO_H:
+    case MACHINE_C:
         /* get B2 reports from exe */
         iRet = CcbGetPmValue(pWorkItem->id,APP_EXE_PM2_NO,1);
         if (iRet )
@@ -13843,6 +13997,7 @@ void CCB::work_run_comm_proc(WORK_ITEM_STRU *pWorkItem, bool bInit)
         }                
         break;
     case MACHINE_PURIST:
+    case MACHINE_C_D:
         break;
     }
 
@@ -13901,6 +14056,7 @@ void CCB::work_init_run_wrapper(void *para)
     case MACHINE_EDI:
     case MACHINE_RO:
     case MACHINE_RO_H:
+    case MACHINE_C:
         {
             iRet = CcbUpdateIAndBs(pWorkItem->id, 0, ulPMMask, ulPMMask);    
             if (iRet )
@@ -13987,6 +14143,7 @@ void CCB::work_init_run_wrapper(void *para)
         }
         break;
     case MACHINE_PURIST:
+    case MACHINE_C_D:
         break;
     }
     //冲洗完成，进入运行状态
@@ -14413,6 +14570,7 @@ void CCB::work_idle_rowash_helper(WORK_ITEM_STRU *pWorkItem)
     case MACHINE_EDI:
     case MACHINE_RO:
     case MACHINE_RO_H:
+    case MACHINE_C:
         CanCcbTransState(DISP_WORK_STATE_IDLE,DISP_WORK_SUB_WASH);        
    
         // 第一步：进水阀、弃水阀、排放阀、原水泵、原水阀工作13min
@@ -14553,6 +14711,7 @@ void CCB::work_idle_phwash_helper(WORK_ITEM_STRU *pWorkItem)
     case MACHINE_EDI:
     case MACHINE_RO:
     case MACHINE_RO_H:
+    case MACHINE_C:
         CanCcbTransState(DISP_WORK_STATE_IDLE,DISP_WORK_SUB_WASH);   
 
         // 第一步：进水阀、弃水阀、排放阀、原水泵，持续10s
@@ -15112,6 +15271,7 @@ DISPHANDLE CCB::DispCmdTubeCirProc(unsigned char *pucData, int iLength)
     case MACHINE_EDI:
     case MACHINE_RO:
     case MACHINE_RO_H:
+    case MACHINE_C:
         return DISP_INVALID_HANDLE;
     default:
         return DISP_INVALID_HANDLE; 
@@ -15261,7 +15421,8 @@ DISPHANDLE CCB::DispCmdHaltProc(void)
 
     if(CcbGetTwFlag())
     {
-        CcbStopQtw();
+        //CcbStopQtw();
+        return NULL;
     }
 
     CcbCancelAllWork();
@@ -15330,7 +15491,19 @@ void CCB::DispStopKeyQtw()
 
 void CCB::DispKeyQtw()
 {
-    aHandler[VIRTUAL_HANDLER].iDevType = APP_DEV_HS_SUB_HP;
+    switch (gGlobalParam.iMachineType)  
+    {
+    case MACHINE_C_D:
+        aHandler[VIRTUAL_HANDLER].iDevType = APP_DEV_HS_SUB_UP;
+        break;
+    case MACHINE_C:
+        aHandler[VIRTUAL_HANDLER].iDevType = APP_DEV_HS_SUB_HP;
+        break;
+    default:
+        aHandler[VIRTUAL_HANDLER].iDevType = APP_DEV_HS_SUB_HP;
+        break;
+    }
+    //aHandler[VIRTUAL_HANDLER].iSpeed = PUMP_SPEED_10;
     
     if(aHandler[VIRTUAL_HANDLER].bit1Qtw)
     {
@@ -15480,6 +15653,7 @@ DISPHANDLE CCB::DispCmdCir(unsigned char *pucData, int iLength)
        switch(gGlobalParam.iMachineType)
        {
        case MACHINE_PURIST:
+       case MACHINE_C_D:
            break;
        default:
            if ((DISP_WORK_STATE_RUN == curWorkState.iMainWorkState4Pw)
@@ -15889,6 +16063,16 @@ void CCB::CcbInitMachineType()
         bit1CirSpeedAdjust = TRUE;
         
         break;
+    case MACHINE_C:
+        ulHyperTwMask  = 0;
+        ulNormalTwMask = (1<<APP_EXE_E4_NO)|(1<<APP_EXE_E5_NO)|(1<<APP_EXE_E6_NO)|(1<<APP_EXE_C2_NO)|(1<<APP_EXE_N2_NO);
+        ulCirMask      = (1<<APP_EXE_E4_NO)|(1<<APP_EXE_E5_NO)|(1<<APP_EXE_E6_NO)|(1<<APP_EXE_C2_NO)|(1<<APP_EXE_N2_NO);
+
+        ulRunMask      = APP_EXE_INNER_SWITCHS & (~((1<<APP_EXE_E4_NO)|(1<<APP_EXE_E5_NO)|(1<<APP_EXE_E6_NO)|(1<<APP_EXE_C2_NO)|(1<<APP_EXE_N2_NO)));
+
+        ulPMMask       = (((1 << APP_EXE_PM1_NO)|(1 << APP_EXE_PM2_NO)) << APP_EXE_MAX_ECO_NUMBER);
+        bit1CirSpeedAdjust = TRUE;
+        break;
     case MACHINE_EDI:
     case MACHINE_RO:
     case MACHINE_RO_H:
@@ -15903,6 +16087,7 @@ void CCB::CcbInitMachineType()
         
         break;
     case MACHINE_PURIST:
+    case MACHINE_C_D:
         ulHyperTwMask  = (1<<APP_EXE_E4_NO)|(1<<APP_EXE_E5_NO)|(1<<APP_EXE_C2_NO)|(1<<APP_EXE_N2_NO)|(1<<APP_EXE_E6_NO)|(1<<APP_EXE_E10_NO);
         ulNormalTwMask = 0;
         ulCirMask      = (1<<APP_EXE_E4_NO)|(1<<APP_EXE_E5_NO)|(1<<APP_EXE_C2_NO)|(1<<APP_EXE_N2_NO)|(1<<APP_EXE_E6_NO);
@@ -16052,10 +16237,12 @@ void CCB::MainInitMsg()
          break;
    case MACHINE_RO:
    case MACHINE_RO_H:
+   case MACHINE_C:
         m_aWaterType[APP_DEV_HS_SUB_UP] = WATER_TYPE_NUM;
         m_aWaterType[APP_DEV_HS_SUB_HP] = WATER_TYPE_HP_RO;
         break;
    case MACHINE_PURIST:
+   case MACHINE_C_D:
         m_aWaterType[APP_DEV_HS_SUB_UP] = WATER_TYPE_UP;
         m_aWaterType[APP_DEV_HS_SUB_HP] = WATER_TYPE_NUM;
         break;
@@ -16281,6 +16468,7 @@ void CCB::MainSecondTask4MainState()
         case MACHINE_UP: 
         case MACHINE_RO: 
         case MACHINE_RO_H:
+        case MACHINE_C:
         case MACHINE_EDI:
             if (bit1B2Full)
             {
@@ -16599,7 +16787,11 @@ void CCB::MainSecondTask4Pw()
                     }
                     break;
                 case CIR_TYPE_HP:
-                    ulDuration = 60*60;                    
+                    ulDuration = 60*60; 
+                    if(gGlobalParam.iMachineType == MACHINE_C)
+                    {
+                        ulDuration = 6*60; 
+                    }
                     if (gulSecond - ulCirTick >= (unsigned int)ulDuration)
                     {
                         if (!SearchWork(work_stop_cir))
@@ -16962,6 +17154,7 @@ void CCB::getInitInstallMask(int &iType0Mask,int &iType1Mask)
     case MACHINE_EDI:
     case MACHINE_RO:
     case MACHINE_RO_H:
+    case MACHINE_C:
         iType0Mask |= (1 << DISP_P_PACK);
         break;
     default:
@@ -16972,7 +17165,9 @@ void CCB::getInitInstallMask(int &iType0Mask,int &iType1Mask)
     {
     case MACHINE_UP:
     case MACHINE_PURIST:
+    case MACHINE_C_D:
     case MACHINE_RO_H:
+    case MACHINE_C:
         iType0Mask |= (1 << DISP_H_PACK);
         break;
     default:
@@ -16983,6 +17178,7 @@ void CCB::getInitInstallMask(int &iType0Mask,int &iType1Mask)
     {
     case MACHINE_UP:
     case MACHINE_PURIST:
+    case MACHINE_C_D:
         iType0Mask |= (1 << DISP_U_PACK);
         break;
     default:
@@ -16997,11 +17193,19 @@ void CCB::getInitInstallMask(int &iType0Mask,int &iType1Mask)
     default:
         break;
     }
-    
+
+    switch(gGlobalParam.iMachineType)
+    {
+    case MACHINE_C_D:
+        iType0Mask |= 1 << DISP_N1_UV;  //254
+        break;
+    }
+        
     switch(gGlobalParam.iMachineType)
     {
     case MACHINE_UP:
     case MACHINE_PURIST:
+    case MACHINE_C_D:
         iType0Mask |= 1 << DISP_N2_UV;  //185
         break;
     }
@@ -17012,7 +17216,9 @@ void CCB::getInitInstallMask(int &iType0Mask,int &iType1Mask)
     case MACHINE_EDI:
     case MACHINE_RO:
     case MACHINE_RO_H:
+    case MACHINE_C:
     case MACHINE_PURIST:
+    case MACHINE_C_D:
         iType0Mask |= 1 << DISP_N3_UV; //Tank UV
         break;
     default:
@@ -17025,6 +17231,7 @@ void CCB::getInitInstallMask(int &iType0Mask,int &iType1Mask)
     case MACHINE_EDI:
     case MACHINE_RO:
     case MACHINE_RO_H:
+    case MACHINE_C:
         iType1Mask |= 1 << DISP_MACHINERY_RO_MEMBRANE;
         break;
     default:
@@ -17046,7 +17253,9 @@ void CCB::getInitInstallMask(int &iType0Mask,int &iType1Mask)
     case MACHINE_EDI:
     case MACHINE_RO:
     case MACHINE_RO_H:
+    case MACHINE_C:
     case MACHINE_PURIST:
+    case MACHINE_C_D:
         iType0Mask |= 1 << DISP_W_FILTER;
         break;
     default:
@@ -17059,7 +17268,9 @@ void CCB::getInitInstallMask(int &iType0Mask,int &iType1Mask)
     case MACHINE_EDI:
     case MACHINE_RO:
     case MACHINE_RO_H:
+    case MACHINE_C:
     case MACHINE_PURIST:
+    case MACHINE_C_D:
         iType1Mask |= 1 << DISP_MACHINERY_CIR_PUMP;
         break;
     default:
@@ -17072,6 +17283,7 @@ void CCB::getInitInstallMask(int &iType0Mask,int &iType1Mask)
     case MACHINE_EDI:
     case MACHINE_RO:
     case MACHINE_RO_H:
+    case MACHINE_C:
         iType1Mask |= 1 << DISP_MACHINERY_RO_BOOSTER_PUMP;
         break;
     default:
@@ -17084,7 +17296,9 @@ void CCB::getInitInstallMask(int &iType0Mask,int &iType1Mask)
     case MACHINE_EDI:
     case MACHINE_RO:
     case MACHINE_RO_H:
+    case MACHINE_C:
     case MACHINE_PURIST:
+    case MACHINE_C_D:
         iType0Mask |= 1 << DISP_T_A_FILTER;
         break;
     default:

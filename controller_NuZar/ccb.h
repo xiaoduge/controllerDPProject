@@ -374,6 +374,8 @@ private:
 
    
    INNER_IPC_STRU   m_Ipc4DevMgr;
+   int              iDevRequest;
+   
    WORK_STATE_STRU  curWorkState;
 
    WORK_STATE_STRU  aWorkStateStack[CCB_WORK_STATE_STACK_DEPTH];
@@ -809,6 +811,8 @@ public:
   int CcbGetRfidCont(int iIndex,int offset,int len,unsigned char *pucData);
   int CcbWriteRfid(int iIndex,int iTime,int offset,int len,unsigned char *pucData);
   int CcbScanRfid(int iIndex,int iTime);
+  void CanCcbAfDevQueryMsg(int mask);
+  int CcbQueryDeviceVersion(int iTime, int addr);
   int CcbQueryDevice(int iTime);
   int CcbSetRPump(int id,int iChl,unsigned int ulValue);
   int DispSetRPump(int iChl,unsigned int ulValue);

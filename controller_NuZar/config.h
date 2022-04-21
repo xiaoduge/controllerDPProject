@@ -15,11 +15,23 @@ struct SystemCfgInfo
     bool bHaveTankUv;
 };
 
+struct ConsumablesCfg 
+{
+    unsigned int ulPart1; 
+    unsigned int ulPart2; 
+};
+
 struct SetPointCfgInfo 
 {
     unsigned int ulPart1; 
     unsigned int ulPart2; 
 };
+
+struct CalibrationCfgInfo 
+{
+    unsigned int ulPart1; 
+};
+
 
 
 class CConfig : public QObject
@@ -33,7 +45,7 @@ public:
     enum {
 
         CONFIG_MachineType = 0,
-        CONFIG_MACHINE_PARAM_STRU    ,
+        CONFIG_ALARM_POINT_STRU    ,
         CONFIG_DISP_TIME_PARAM_STRU         ,
         CONFIG_DISP_ALARM_SETTING_STRU      ,
         CONFIG_DISP_SUB_MODULE_SETTING_STRU ,
@@ -86,7 +98,13 @@ public:
 
     void doQuerySystemCfg(std::string &rsp);
 
+    //dcj add
+    void doQueryAlerts(std::string &rsp);
+    void doQueryConsumablesCfg(std::string &rsp);
     void doQuerySetPointCfg(std::string &rsp);
+    void doQueryCalibrationCfg(std::string &rsp);
+    void doQuerySysTestCfg(std::string &rsp);
+    void doQueryAlarmSetCfg(std::string &rsp);
 
     void doQueryWifi(std::string &rsp);
 
@@ -117,6 +135,8 @@ public:
     bool doUserMgr(std::string &req,std::string &rsp);
 
     bool doDateTimeCfg(std::string &req,std::string &rsp);
+
+    bool doExportCfg(std::string &req,std::string &rsp);
     
     bool doDelDb(std::string &req,std::string &rsp);
 
@@ -137,8 +157,12 @@ public:
     QString m_strResult;
 
     // 2020/08/28 add for web config
-    SystemCfgInfo  m_SystemCfgInfo;
-    SetPointCfgInfo m_SetPointCfgInfo;
+    SystemCfgInfo      m_SystemCfgInfo;
+    SetPointCfgInfo    m_SetPointCfgInfo;
+    CalibrationCfgInfo m_CalibrationCfgInfo;
+    CalibrationCfgInfo m_SysTestCfgInfo;
+    ConsumablesCfg     m_ConsumablesCfg;
+    ConsumablesCfg     m_AlarmSetCfg;
 
 };
 

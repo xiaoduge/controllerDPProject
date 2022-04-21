@@ -19,6 +19,10 @@ extern "C"
 #define MACH_NAME_RO             "NuZar R"
 #define MACH_NAME_RO_H           "NuZar H"
 #define MACH_NAME_PURIST         "NuZar Q"
+#define MACH_NAME_C              "NuZar C"
+#define MACH_NAME_C_D            "NuZar CD"
+
+
 //end
 
 typedef enum

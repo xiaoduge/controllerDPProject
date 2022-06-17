@@ -430,6 +430,7 @@ private:
 	void initConsumablesCfg();
     void initMachineryCfg();
 	void initRFIDCfg();
+    void preprocessor();
     
     void updEcoInfo(int iIdx);
 

@@ -5820,6 +5820,35 @@ void MainWindow::initRFIDCfg()
     }
 }
 
+void MainWindow::preprocessor()
+{
+    QString strCfgName = gaMachineType[gGlobalParam.iMachineType].strName;
+
+    strCfgName += "_pre.ini";
+    
+    QSettings *config = new QSettings(strCfgName, QSettings::IniFormat);
+
+    QString strV = "/global/version";
+    QString version = config->value(strV, "unknow").toString();
+
+    if((0 == version.compare("unknow"))
+     || (0 != version.compare(gApp->applicationVersion())))
+    {
+        MainResetCmInfo(DISP_N1_UV);
+        MainResetCmInfo(DISP_N2_UV);
+        MainResetCmInfo(DISP_N3_UV);
+
+        config->setValue(strV, gApp->applicationVersion());
+    }
+    
+    if (config)
+    {
+        delete config;
+        config = NULL;
+    }
+}
+
+
 MainWindow::MainWindow(QMainWindow *parent) :
     QMainWindow(parent)/*, ui(new Ui::MainWindow)*/
 {
@@ -6030,6 +6059,8 @@ MainWindow::MainWindow(QMainWindow *parent) :
 
     initMachineFlow();
     checkTubeCir();
+
+    //preprocessor();
     
 #ifdef D_HTTPWORK
     for(int i = 0; i < HTTP_NOTIFY_NUM; i++)

@@ -233,13 +233,12 @@ typedef enum
 {
     APP_LAN_ENG,
     APP_LAN_CHN,
-    APP_LAN_SPA, /*2018/01/24 modify*/
-    APP_LAN_FRE,
-    APP_LAN_GER, 
-    APP_LAN_ITA,
-    APP_LAN_SKR,
-    APP_LAN_RUS,
-    APP_LAN_POR,
+    APP_LAN_SPA, //葡萄牙语
+    APP_LAN_FRE, //法语
+    APP_LAN_GER, //德语
+    APP_LAN_ITA, //意大利语
+    APP_LAN_ES,  //西班牙语
+    APP_LAN_RO,  //罗马尼亚
     APP_LAN_NUM   
 }APP_LAN_TYPE_ENUM;
 

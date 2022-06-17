@@ -115,20 +115,8 @@ void CtrlApplication::installTranslators(int iLanguage,bool bSwitchFont)
             m_pTranslator->load(":/language/it.qm");
             installTranslator(m_pTranslator);
             break;
-        case APP_LAN_SKR:
-            m_pTranslator->load(":/language/kr.qm");
-            installTranslator(m_pTranslator);
-            break;
         case APP_LAN_GER:
             m_pTranslator->load(":/language/de.qm");
-            installTranslator(m_pTranslator);
-            break;
-        case APP_LAN_RUS:
-            m_pTranslator->load(":/language/rus.qm");
-            installTranslator(m_pTranslator);
-            break;
-        case APP_LAN_POR:
-            m_pTranslator->load(":/language/por.qm");
             installTranslator(m_pTranslator);
             break;
         default:
@@ -153,9 +141,6 @@ void CtrlApplication::installTranslators(int iLanguage,bool bSwitchFont)
             case APP_LAN_FRE:
             case APP_LAN_GER:
             case APP_LAN_ITA:
-            case APP_LAN_RUS:
-            case APP_LAN_SKR:
-            case APP_LAN_POR:
                 {
                     QFont font(m_strLstFont[1],16);
                     QApplication::setFont(font);

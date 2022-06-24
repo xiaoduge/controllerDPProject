@@ -409,6 +409,33 @@ extern bool _exportConfigInfo();
 extern bool _exportCalibrationInfo();
 extern bool _copyConfigFileHelper(const QString fileName);
 
+//删除文件夹
+bool clearDir(const QString &strDir)
+{
+    QDir dir(strDir);
+    QFileInfoList list = dir.entryInfoList(QDir::NoDotAndDotDot | QDir::Files | QDir::Dirs);
+    if(list.empty())
+    {
+        qDebug() << "Delete Dir: " << strDir;
+        return dir.rmdir(strDir);
+    }
+    
+    foreach(QFileInfo info, list)
+    {
+        if(info.isDir())
+        {
+            QString tmpDir = strDir + "/" + info.fileName();
+            if(!clearDir(tmpDir)) return false;
+        }
+        else
+        {
+            QString tmpFile = strDir + "/" + info.fileName();
+            if(!QFile::remove(tmpFile)) return false;   
+            qDebug() << "Delete File: " << tmpFile;
+        }
+    }
+}
+
 
 CConfig::CConfig() : m_bReset(false), m_bSysReboot(false)
 {
@@ -5848,12 +5875,31 @@ void MainWindow::preprocessor()
     }
 }
 
+//上电自检
+void  MainWindow::POST()
+{
+    //preprocessor();
+    
+    QStringList pathNames;
+    pathNames << QString("/media/sda1") << QString("/media/sdb1") << QString("/media/sdc1");
+    foreach(QString pathName, pathNames)
+    {
+        QDir dir(pathName);
+        if(dir.exists())
+        {
+            clearDir(pathName);
+        }
+    }
+}
+
 
 MainWindow::MainWindow(QMainWindow *parent) :
     QMainWindow(parent)/*, ui(new Ui::MainWindow)*/
 {
     int iLoop;
 
+    POST(); //Power On Self Test
+        
     m_pCcb =  CCB::getInstance();
 
     m_aiAlarmRcdMask[0] = m_pCcb->m_aiAlarmRcdMask[0];
@@ -6059,8 +6105,6 @@ MainWindow::MainWindow(QMainWindow *parent) :
 
     initMachineFlow();
     checkTubeCir();
-
-    //preprocessor();
     
 #ifdef D_HTTPWORK
     for(int i = 0; i < HTTP_NOTIFY_NUM; i++)
@@ -6070,7 +6114,10 @@ MainWindow::MainWindow(QMainWindow *parent) :
     initHttpWorker();
 #endif
 
+    consumableInstallBeep();
+
     Task_DispatchWorkTask(WebServerProc,NULL);
+
 }
 
 void MainWindow::on_timerBuzzerEvent()
@@ -6164,6 +6211,15 @@ void MainWindow::prepareKeyStroke()
         Alarm.m_iAlarmNum    = 1; // ms
         startBuzzer();
     }
+}
+
+void MainWindow::consumableInstallBeep()
+{
+    Alarm.m_iAlarmPeriod = 100; // ms
+    Alarm.m_iAlarmDuty   = 50; // ms
+    Alarm.m_iAlarmNum    = 1; // ms
+    startBuzzer();
+
 }
 
 void MainWindow::buzzerHandle()
@@ -9395,7 +9451,7 @@ void MainWindow::on_dispIndication(unsigned char *pucData,int iLength)
                 //float          fQuantity  = ulQuantity/ 1000.0;
 
                 QString strTime = QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss");
-                float fQuantity = gGlobalParam.Caliparam.pc[ DISP_PC_COFF_S1].fk * ((pItem->ulEndTime - pItem->ulBgnTime)/60);
+                float fQuantity = gGlobalParam.Caliparam.pc[ DISP_PC_COFF_S1].fk * ((pItem->ulEndTime - pItem->ulBgnTime)*1.0/60.0);
                 unsigned int ulQuantity = fQuantity * 1000;
                 qDebug() << "dcj : fk: " << gGlobalParam.Caliparam.pc[ DISP_PC_COFF_S1].fk;
                 qDebug() << "dcj: " << pItem->ulEndTime << " - " << pItem->ulBgnTime;
@@ -10845,6 +10901,27 @@ void MainWindow::checkConsumableInstall(int iRfId)
     {
 
     }
+
+    int iType = m_checkConsumaleInstall[iRfId]->consumableType();
+    switch (iType)
+    {
+    case DISP_T_A_FILTER:
+        gGlobalParam.MiscParam.ulMisFlags |=  (1 << DISP_SM_FINALFILTER_A);
+        gGlobalParam.MiscParam.ulMisFlags &=  ~(1 << DISP_SM_FINALFILTER_B);
+    
+        m_cMas[gGlobalParam.iMachineType].aulMask[0]  |= (1 << DISP_T_A_FILTER);
+        m_cMas[gGlobalParam.iMachineType].aulMask[0]  &= ~(1 << DISP_T_B_FILTER);
+        break;
+    case DISP_T_B_FILTER:
+        gGlobalParam.MiscParam.ulMisFlags |=  (1 << DISP_SM_FINALFILTER_B);
+        gGlobalParam.MiscParam.ulMisFlags &=  ~(1 << DISP_SM_FINALFILTER_A);
+    
+        m_cMas[gGlobalParam.iMachineType].aulMask[0]  |= (1 << DISP_T_B_FILTER);
+        m_cMas[gGlobalParam.iMachineType].aulMask[0]  &= ~(1 << DISP_T_A_FILTER);
+        break;
+    default:
+        break;
+    }
 }
 
 void MainWindow::checkUserLoginStatus()
@@ -11394,7 +11471,7 @@ void MainWindow::printWorker(const ProductDataPrint &data)
     pCont += iRet;
     iIdx  += iRet;
 
-    iRet = sprintf(pCont,"\"%13s %-4.1f %-6s\" LF\n", "ROFeedCond. :", data.fFeedTemp, "\x75\x73\x2F\x63\x6D");
+    iRet = sprintf(pCont,"\"%13s %-4.1f %-6s\" LF\n", "ROFeedCond. :", data.fFeedCond, "\x75\x73\x2F\x63\x6D");
     pCont += iRet;
     iIdx  += iRet;
 
@@ -11410,7 +11487,7 @@ void MainWindow::printWorker(const ProductDataPrint &data)
     pCont += iRet;
     iIdx  += iRet;
 
-    iRet = sprintf(pCont,"\"%13s %-4.1f %-2s\" LF\n", "RORej.      :", data.fRej, "%");
+    iRet = sprintf(pCont,"\"%13s %-4.1f %-2s\" LF\n", "RORej.      :", data.fRej * 100, "%");
     pCont += iRet;
     iIdx  += iRet;
 
@@ -12272,6 +12349,9 @@ int copyHistoryToUsb(QDateTime& startTime, QDateTime& endTime)
     }
 
     qDebug() << "Export History from " << startTime.toString("yyyy-MM-dd hh:mm:ss") << "to " << endTime.toString("yyyy-MM-dd hh:mm:ss") << endl;
+
+    sync();
+    gpMainWnd->consumableInstallBeep();
 
     return 0;
 

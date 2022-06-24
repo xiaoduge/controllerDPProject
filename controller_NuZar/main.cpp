@@ -324,32 +324,6 @@ void preMainCalbrate(void)
 
 }
 
-bool clearDir(const QString &strDir)
-{
-    QDir dir(strDir);
-    QFileInfoList list = dir.entryInfoList(QDir::NoDotAndDotDot | QDir::Files | QDir::Dirs);
-    if(list.empty())
-    {
-        qDebug() << "Delete Dir: " << strDir;
-        return dir.rmdir(strDir);
-    }
-    
-    foreach(QFileInfo info, list)
-    {
-        if(info.isDir())
-        {
-            QString tmpDir = strDir + "/" + info.fileName();
-            if(!clearDir(tmpDir)) return false;
-        }
-        else
-        {
-            QString tmpFile = strDir + "/" + info.fileName();
-            if(!QFile::remove(tmpFile)) return false;   
-            qDebug() << "Delete File: " << tmpFile;
-        }
-    }
-}
-
 bool copyDir(const QString &strFrom, const QString &strTo)
 {
     QDir fromDir(strFrom);

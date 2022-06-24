@@ -4555,6 +4555,8 @@ void CCB::work_stop_cir(void *para)
     }     
 
     pCcb->work_stop_cir_succ();
+
+    pCcb->ulHPMinCirTimes = 0;
 }
 
 
@@ -5846,8 +5848,15 @@ void CCB::CanCcbEcoMeasurePostProcess(int iEcoId)
                                     float fValue = ExeBrd.aEcoObjs[APP_EXE_I3_NO].Value.eV.fWaterQ;
                                     if (fValue >= CcbGetSp11())
                                     {
-                                        /* Stop Circulation */
-                                        CcbInnerWorkStopCir();
+                                        ulHPMinCirTimes++;
+                                        if(ulHPMinCirTimes > 60)
+                                        {
+                                            CcbInnerWorkStopCir();
+                                        }
+                                    }
+                                    else
+                                    {
+                                        ulHPMinCirTimes = 0;
                                     }
                                 }
                             }
@@ -5862,8 +5871,15 @@ void CCB::CanCcbEcoMeasurePostProcess(int iEcoId)
                                     float fValue = ExeBrd.aEcoObjs[APP_EXE_I4_NO].Value.eV.fWaterQ;
                                     if (fValue >= CcbGetSp11())
                                     {
-                                        /* Stop Circulation */
-                                        CcbInnerWorkStopCir();
+                                        ulHPMinCirTimes++;
+                                        if(ulHPMinCirTimes > 60)
+                                        {
+                                            CcbInnerWorkStopCir();
+                                        }
+                                    }
+                                    else
+                                    {
+                                        ulHPMinCirTimes = 0;
                                     }
                                 }
                             }
@@ -7273,6 +7289,7 @@ void CCB::work_start_key(void *para)
     case APP_EXE_DIN_LEAK_KEY:
         {
             /* stop all */
+#if 0
             iTmp = 0;
             iRet = pCcb->CcbSetSwitch(pWorkItem->id,0,iTmp); // don care modbus exe result
             if (iRet )
@@ -7284,10 +7301,23 @@ void CCB::work_start_key(void *para)
 
                 return ;
             }
+#endif
+            /* E3 ON */
+            iTmp = (1 << APP_EXE_E3_NO);
+            iRet = pCcb->CcbUpdateSwitch(pWorkItem->id,0,iTmp,iTmp);
+            
+            if (iRet )
+            {
+                LOG(VOS_LOG_WARNING,"CcbUpdateSwitch Fail %d",iRet);
+                pCcb->work_start_key_fail((int)pWorkItem->extra);
+
+                return ;
+            }
+
 
             pCcb->bit1LeakKey4Reset = TRUE;
             pCcb->CcbNotAlarmFire(0XFF, DISP_ALARM_B_TANKOVERFLOW, TRUE);
-
+            
             pCcb->CanCcbTransState(DISP_WORK_STATE_KP,DISP_WORK_SUB_IDLE);
         }
         break;
@@ -7343,7 +7373,15 @@ void CCB::work_stop_key(void *para)
         break;
     case APP_EXE_DIN_LEAK_KEY:
         {
+            iTmp = (1 << APP_EXE_E3_NO);
+            iRet = pCcb->CcbUpdateSwitch(pWorkItem->id, 0, iTmp, 0);
+            if (iRet )
+            {
+                LOG(VOS_LOG_WARNING,"CcbUpdateSwitch Fail %d",iRet);
+            }
+            
             pCcb->CcbNotAlarmFire(0XFF, DISP_ALARM_B_TANKOVERFLOW, FALSE);
+            
             pCcb->DispCmdEntry(DISP_CMD_LEAK_RESET,NULL,0);
         }
         break;
@@ -10550,384 +10588,334 @@ int CCB::CanCcbAfDataHOExtCmStateQryMsg(MAIN_CANITF_MSG_STRU *pCanItfMsg)
         // retrive information
         {
              uint32_t ulDstMap  = 0;
-             uint32_t ulCurTime = DispGetCurSecond();
+             
              int      iMask = m_cMas[gGlobalParam.iMachineType].aulMask[0];
-             int      tmp;
+             uint32_t tmp;
              uint8_t  *pMsg = pSubRsp->aucData;
          
              if (iMask & (1 << DISP_PRE_PACK))
              {
-                 tmp = gGlobalParam.CMParam.aulCms[DISP_PRE_PACKLIFEDAY] -
-                     (DispGetCurSecond() - gCMUsage.info.aulCms[DISP_PRE_PACKLIFEDAY])/ DISP_DAYININSECOND;
-
+                 tmp = gCMUsage.info.aulCms[DISP_PRE_PACKLIFEDAY]; //安装日期
                  if (tmp < 0) tmp = 0;
-
                  if (pSubReq->ulMap & (1 << DISP_PRE_PACKLIFEDAY))
                  {
-                     *(uint16_t *)pMsg = tmp;
+                     *(uint32_t *)pMsg = tmp;
                      ulDstMap |= (1 << DISP_PRE_PACKLIFEDAY);
-                     pMsg += 2;
+                     pMsg += 4;
                  }
 
                  tmp = gCMUsage.info.aulCms[DISP_PRE_PACKLIFEL];
-                 
                  if (tmp < 0) tmp = 0;
                  if (pSubReq->ulMap & (1 << DISP_PRE_PACKLIFEL))
                  {
-                     *(uint16_t *)pMsg = tmp;
+                     *(uint32_t *)pMsg = tmp;
                      ulDstMap |= (1 << DISP_PRE_PACKLIFEL);
-                     pMsg += 2;
+                     pMsg += 4;
                  }
          
              }    
-             //2018.10.22 AC PACK
+   
              if (iMask & (1 << DISP_AC_PACK))
              {
-                 tmp = gGlobalParam.CMParam.aulCms[DISP_AC_PACKLIFEDAY] -
-                     (DispGetCurSecond() - gCMUsage.info.aulCms[DISP_AC_PACKLIFEDAY])/ DISP_DAYININSECOND;
-
+                 tmp = gCMUsage.info.aulCms[DISP_AC_PACKLIFEDAY];
                  if (tmp < 0) tmp = 0;
-
                  if (pSubReq->ulMap & (1 << DISP_AC_PACKLIFEDAY))
                  {
-                     *(uint16_t *)pMsg = tmp;
+                     *(uint32_t *)pMsg = tmp;
                      ulDstMap |= (1 << DISP_AC_PACKLIFEDAY);
-                     pMsg += 2;
+                     pMsg += 4;
                  }
 
                  tmp = gCMUsage.info.aulCms[DISP_AC_PACKLIFEL];
                  if (tmp < 0) tmp = 0;
                  if (pSubReq->ulMap & (1 << DISP_AC_PACKLIFEL))
                  {
-                     *(uint16_t *)pMsg = tmp;
+                     *(uint32_t *)pMsg = tmp;
                      ulDstMap |= (1 << DISP_AC_PACKLIFEL);
-                     pMsg += 2;
+                     pMsg += 4;
                  }
          
              }
          
-             //2018.10.12 T_Pack
              if ((iMask & (1 << DISP_T_PACK)))
              {
-
-                 tmp = gGlobalParam.CMParam.aulCms[DISP_T_PACKLIFEDAY] -
-                     (DispGetCurSecond() - gCMUsage.info.aulCms[DISP_T_PACKLIFEDAY])/ DISP_DAYININSECOND;
-
+                 tmp = gCMUsage.info.aulCms[DISP_T_PACKLIFEDAY];
                  if (tmp < 0) tmp = 0;
-
                  if (pSubReq->ulMap & (1 << DISP_T_PACKLIFEDAY))
                  {
-                     *(uint16_t *)pMsg = tmp;
+                     *(uint32_t *)pMsg = tmp;
                      ulDstMap |= (1 << DISP_T_PACKLIFEDAY);
-                     pMsg += 2;
+                     pMsg += 4;
                  }
 
                  tmp = gCMUsage.info.aulCms[DISP_T_PACKLIFEL];
                  if (tmp < 0) tmp = 0;
                  if (pSubReq->ulMap & (1 << DISP_T_PACKLIFEL))
                  {
-                     *(uint16_t *)pMsg = tmp;
+                     *(uint32_t *)pMsg = tmp;
                      ulDstMap |= (1 << DISP_T_PACKLIFEL);
-                     pMsg += 2;
+                     pMsg += 4;
                  }                 
          
              }
-             //
-         
-             // check pack
+
              if ((iMask & (1 << DISP_P_PACK)))
              {
-
-                 tmp = gGlobalParam.CMParam.aulCms[DISP_P_PACKLIFEDAY] -
-                     (DispGetCurSecond() - gCMUsage.info.aulCms[DISP_P_PACKLIFEDAY])/ DISP_DAYININSECOND;
-
+                 tmp = gCMUsage.info.aulCms[DISP_P_PACKLIFEDAY];
                  if (tmp < 0) tmp = 0;
-
                  if (pSubReq->ulMap & (1 << DISP_P_PACKLIFEDAY))
                  {
-                     *(uint16_t *)pMsg = tmp;
+                     *(uint32_t *)pMsg = tmp;
                      ulDstMap |= (1 << DISP_P_PACKLIFEDAY);
-                     pMsg += 2;
+                     pMsg += 4;
                  }
 
                  tmp = gCMUsage.info.aulCms[DISP_P_PACKLIFEL];
                  if (tmp < 0) tmp = 0;
                  if (pSubReq->ulMap & (1 << DISP_P_PACKLIFEL))
                  {
-                     *(uint16_t *)pMsg = tmp;
+                     *(uint32_t *)pMsg = tmp;
                      ulDstMap |= (1 << DISP_P_PACKLIFEL);
-                     pMsg += 2;
+                     pMsg += 4;
                  }                  
          
              }
          
              if ((iMask & (1 << DISP_U_PACK)))
              {
-                 tmp = gGlobalParam.CMParam.aulCms[DISP_U_PACKLIFEDAY] -
-                     (DispGetCurSecond() - gCMUsage.info.aulCms[DISP_U_PACKLIFEDAY])/ DISP_DAYININSECOND;
-       
-
+                 tmp = gCMUsage.info.aulCms[DISP_U_PACKLIFEDAY];
                  if (tmp < 0) tmp = 0;
-
                  if (pSubReq->ulMap & (1 << DISP_U_PACKLIFEDAY))
                  {
-                     *(uint16_t *)pMsg = tmp;
+                     *(uint32_t *)pMsg = tmp;
                      ulDstMap |= (1 << DISP_U_PACKLIFEDAY);
-                     pMsg += 2;
+                     pMsg += 4;
                  }
 
                  tmp = gCMUsage.info.aulCms[DISP_U_PACKLIFEL];
                  if (tmp < 0) tmp = 0;
                  if (pSubReq->ulMap & (1 << DISP_U_PACKLIFEL))
                  {
-                     *(uint16_t *)pMsg = tmp;
+                     *(uint32_t *)pMsg = tmp;
                      ulDstMap |= (1 << DISP_U_PACKLIFEL);
-                     pMsg += 2;
+                     pMsg += 4;
                  }                     
          
              }    
 
              if ((iMask & (1 << DISP_AT_PACK)))
              {
-                 tmp = gGlobalParam.CMParam.aulCms[DISP_AT_PACKLIFEDAY] -
-                     (DispGetCurSecond() - gCMUsage.info.aulCms[DISP_AT_PACKLIFEDAY])/ DISP_DAYININSECOND;
-
+                 tmp = gCMUsage.info.aulCms[DISP_AT_PACKLIFEDAY];
                  if (tmp < 0) tmp = 0;
-
                  if (pSubReq->ulMap & (1 << DISP_AT_PACKLIFEDAY))
                  {
-                     *(uint16_t *)pMsg = tmp;
+                     *(uint32_t *)pMsg = tmp;
                      ulDstMap |= (1 << DISP_AT_PACKLIFEDAY);
-                     pMsg += 2;
+                     pMsg += 4;
                  }
 
                  tmp = gCMUsage.info.aulCms[DISP_AT_PACKLIFEL];
                  if (tmp < 0) tmp = 0;
                  if (pSubReq->ulMap & (1 << DISP_AT_PACKLIFEL))
                  {
-                     *(uint16_t *)pMsg = tmp;
+                     *(uint32_t *)pMsg = tmp;
                      ulDstMap |= (1 << DISP_AT_PACKLIFEL);
-                     pMsg += 2;
+                     pMsg += 4;
                  }                     
                 
              }         
-             // check pack
+
              if ((iMask & (1 << DISP_H_PACK)))
              {
-                 tmp = gGlobalParam.CMParam.aulCms[DISP_H_PACKLIFEDAY] -
-                     (DispGetCurSecond() - gCMUsage.info.aulCms[DISP_H_PACKLIFEDAY])/ DISP_DAYININSECOND;
-          
+                 tmp = gCMUsage.info.aulCms[DISP_H_PACKLIFEDAY];
                  if (tmp < 0) tmp = 0;
-
                  if (pSubReq->ulMap & (1 << DISP_H_PACKLIFEDAY))
                  {
-                     *(uint16_t *)pMsg = tmp;
+                     *(uint32_t *)pMsg = tmp;
                      ulDstMap |= (1 << DISP_H_PACKLIFEDAY);
-                     pMsg += 2;
+                     pMsg += 4;
                  }
 
                  tmp = gCMUsage.info.aulCms[DISP_H_PACKLIFEL];
                  if (tmp < 0) tmp = 0;
                  if (pSubReq->ulMap & (1 << DISP_H_PACKLIFEL))
                  {
-                     *(uint16_t *)pMsg = tmp;
+                     *(uint32_t *)pMsg = tmp;
                      ulDstMap |= (1 << DISP_H_PACKLIFEL);
-                     pMsg += 2;
+                     pMsg += 4;
                  }                        
          
              }
          
-             // check uv
              if ((iMask & (1 << DISP_N1_UV)))
              {
-                 tmp = gGlobalParam.CMParam.aulCms[DISP_N1_UVLIFEDAY] -
-                     (DispGetCurSecond() - gCMUsage.info.aulCms[DISP_N1_UVLIFEDAY])/ DISP_DAYININSECOND;
-
+                 tmp = gCMUsage.info.aulCms[DISP_N1_UVLIFEDAY];
                  if (tmp < 0) tmp = 0;
-
                  if (pSubReq->ulMap & (1 << DISP_N1_UVLIFEDAY))
                  {
-                     *(uint16_t *)pMsg = tmp;
+                     *(uint32_t *)pMsg = tmp;
                      ulDstMap |= (1 << DISP_N1_UVLIFEDAY);
-                     pMsg += 2;
+                     pMsg += 4;
                  }
 
                  tmp = gCMUsage.info.aulCms[DISP_N1_UVLIFEHOUR];
                  if (tmp < 0) tmp = 0;
                  if (pSubReq->ulMap & (1 << DISP_N1_UVLIFEHOUR))
                  {
-                     *(uint16_t *)pMsg = tmp;
+                     *(uint32_t *)pMsg = tmp;
                      ulDstMap |= (1 << DISP_N1_UVLIFEHOUR);
-                     pMsg += 2;
+                     pMsg += 4;
                  }                    
          
-             }        
+             } 
+             
              if ((iMask & (1 << DISP_N2_UV)))
              {
-                 tmp = gGlobalParam.CMParam.aulCms[DISP_N2_UVLIFEDAY] -
-                     (DispGetCurSecond() - gCMUsage.info.aulCms[DISP_N2_UVLIFEDAY])/ DISP_DAYININSECOND;
+                 tmp = gCMUsage.info.aulCms[DISP_N2_UVLIFEDAY];
                  if (tmp < 0) tmp = 0;
-
                  if (pSubReq->ulMap & (1 << DISP_N2_UVLIFEDAY))
                  {
-                     *(uint16_t *)pMsg = tmp;
+                     *(uint32_t *)pMsg = tmp;
                      ulDstMap |= (1 << DISP_N2_UVLIFEDAY);
-                     pMsg += 2;
+                     pMsg += 4;
                  }
 
                  tmp = gCMUsage.info.aulCms[DISP_N2_UVLIFEHOUR];
                  if (tmp < 0) tmp = 0;
                  if (pSubReq->ulMap & (1 << DISP_N2_UVLIFEHOUR))
                  {
-                     *(uint16_t *)pMsg = tmp;
+                     *(uint32_t *)pMsg = tmp;
                      ulDstMap |= (1 << DISP_N2_UVLIFEHOUR);
-                     pMsg += 2;
+                     pMsg += 4;
                  }                
              }        
          
              if ((iMask & (1 << DISP_N3_UV)))
              {
-                 tmp = gGlobalParam.CMParam.aulCms[DISP_N3_UVLIFEDAY] -
-                     (DispGetCurSecond() - gCMUsage.info.aulCms[DISP_N3_UVLIFEDAY])/ DISP_DAYININSECOND;
+                 tmp = gCMUsage.info.aulCms[DISP_N3_UVLIFEDAY];
                  if (tmp < 0) tmp = 0;
-
                  if (pSubReq->ulMap & (1 << DISP_N3_UVLIFEDAY))
                  {
-                     *(uint16_t *)pMsg = tmp;
+                     *(uint32_t *)pMsg = tmp;
                      ulDstMap |= (1 << DISP_N3_UVLIFEDAY);
-                     pMsg += 2;
+                     pMsg += 4;
                  }
 
                  tmp = gCMUsage.info.aulCms[DISP_N3_UVLIFEHOUR];
                  if (tmp < 0) tmp = 0;
                  if (pSubReq->ulMap & (1 << DISP_N3_UVLIFEHOUR))
                  {
-                     *(uint16_t *)pMsg = tmp;
+                     *(uint32_t *)pMsg = tmp;
                      ulDstMap |= (1 << DISP_N3_UVLIFEHOUR);
-                     pMsg += 2;
+                     pMsg += 4;
                  }                   
              }        
          
              if ((iMask & (1 << DISP_N4_UV)))
              {
-                 tmp = gGlobalParam.CMParam.aulCms[DISP_N4_UVLIFEDAY] -
-                     (DispGetCurSecond() - gCMUsage.info.aulCms[DISP_N4_UVLIFEDAY])/ DISP_DAYININSECOND;
+                 tmp = gCMUsage.info.aulCms[DISP_N4_UVLIFEDAY];
                  if (tmp < 0) tmp = 0;
-
                  if (pSubReq->ulMap & (1 << DISP_N4_UVLIFEDAY))
                  {
-                     *(uint16_t *)pMsg = tmp;
+                     *(uint32_t *)pMsg = tmp;
                      ulDstMap |= (1 << DISP_N4_UVLIFEDAY);
-                     pMsg += 2;
+                     pMsg += 4;
                  }
 
                  tmp = gCMUsage.info.aulCms[DISP_N4_UVLIFEHOUR];
                  if (tmp < 0) tmp = 0;
                  if (pSubReq->ulMap & (1 << DISP_N4_UVLIFEHOUR))
                  {
-                     *(uint16_t *)pMsg = tmp;
+                     *(uint32_t *)pMsg = tmp;
                      ulDstMap |= (1 << DISP_N4_UVLIFEHOUR);
-                     pMsg += 2;
+                     pMsg += 4;
                  }                   
          
              }        
              
              if ((iMask & (1 << DISP_N5_UV)))
              {
-                 tmp = gGlobalParam.CMParam.aulCms[DISP_N5_UVLIFEDAY] -
-                     (DispGetCurSecond() - gCMUsage.info.aulCms[DISP_N5_UVLIFEDAY])/ DISP_DAYININSECOND;
+                 tmp = gCMUsage.info.aulCms[DISP_N5_UVLIFEDAY];
                  if (tmp < 0) tmp = 0;
-
                  if (pSubReq->ulMap & (1 << DISP_N5_UVLIFEDAY))
                  {
-                     *(uint16_t *)pMsg = tmp;
+                     *(uint32_t *)pMsg = tmp;
                      ulDstMap |= (1 << DISP_N5_UVLIFEDAY);
-                     pMsg += 2;
+                     pMsg += 4;
                  }
 
                  tmp = gCMUsage.info.aulCms[DISP_N5_UVLIFEHOUR];
                  if (tmp < 0) tmp = 0;
                  if (pSubReq->ulMap & (1 << DISP_N5_UVLIFEHOUR))
                  {
-                     *(uint16_t *)pMsg = tmp;
+                     *(uint32_t *)pMsg = tmp;
                      ulDstMap |= (1 << DISP_N5_UVLIFEHOUR);
-                     pMsg += 2;
+                     pMsg += 4;
                  }            
              }        
          
              if ((iMask & (1 << DISP_W_FILTER)))
              {
-                 tmp = gGlobalParam.CMParam.aulCms[DISP_W_FILTERLIFE] -
-                     (DispGetCurSecond() - gCMUsage.info.aulCms[DISP_W_FILTERLIFE])/ DISP_DAYININSECOND;
+                 tmp = gCMUsage.info.aulCms[DISP_W_FILTERLIFE];
                  if (tmp < 0) tmp = 0;
-
                  if (pSubReq->ulMap & (1 << DISP_W_FILTERLIFE))
                  {
-                     *(uint16_t *)pMsg = tmp;
+                     *(uint32_t *)pMsg = tmp;
                      ulDstMap |= (1 << DISP_W_FILTERLIFE);
-                     pMsg += 2;
+                     pMsg += 4;
                  }
                  
              }
          
              if ((iMask & (1 << DISP_T_B_FILTER)))
              {
-                 tmp = gGlobalParam.CMParam.aulCms[DISP_T_B_FILTERLIFE] -
-                     (DispGetCurSecond() - gCMUsage.info.aulCms[DISP_T_B_FILTERLIFE])/ DISP_DAYININSECOND;
+                 tmp = gCMUsage.info.aulCms[DISP_T_B_FILTERLIFE];
                  if (tmp < 0) tmp = 0;
-
                  if (pSubReq->ulMap & (1 << DISP_T_B_FILTERLIFE))
                  {
-                     *(uint16_t *)pMsg = tmp;
+                     *(uint32_t *)pMsg = tmp;
                      ulDstMap |= (1 << DISP_T_B_FILTERLIFE);
-                     pMsg += 2;
+                     pMsg += 4;
                  }                 
              }
          
              if ((iMask & (1 << DISP_T_A_FILTER)))
              {
-                 tmp = gGlobalParam.CMParam.aulCms[DISP_T_A_FILTERLIFE] -
-                     (DispGetCurSecond() - gCMUsage.info.aulCms[DISP_T_A_FILTERLIFE])/ DISP_DAYININSECOND;
+                 tmp = gCMUsage.info.aulCms[DISP_T_A_FILTERLIFE];
                  if (tmp < 0) tmp = 0;
-
                  if (pSubReq->ulMap & (1 << DISP_T_A_FILTERLIFE))
                  {
-                     *(uint16_t *)pMsg = tmp;
+                     *(uint32_t *)pMsg = tmp;
                      ulDstMap |= (1 << DISP_T_A_FILTERLIFE);
-                     pMsg += 2;
+                     pMsg += 4;
                  }                 
                  
              }    
          
              if ((iMask & (1 << DISP_TUBE_FILTER)))
              {
-                 tmp = gGlobalParam.CMParam.aulCms[DISP_TUBE_FILTERLIFE] -
-                     (DispGetCurSecond() - gCMUsage.info.aulCms[DISP_TUBE_FILTERLIFE])/ DISP_DAYININSECOND;
+                 tmp = gCMUsage.info.aulCms[DISP_TUBE_FILTERLIFE];
                  if (tmp < 0) tmp = 0;
-
                  if (pSubReq->ulMap & (1 << DISP_TUBE_FILTERLIFE))
                  {
-                     *(uint16_t *)pMsg = tmp;
+                     *(uint32_t *)pMsg = tmp;
                      ulDstMap |= (1 << DISP_TUBE_FILTERLIFE);
-                     pMsg += 2;
-                 }                 
-                                  
+                     pMsg += 4;
+                 }                                 
              }  
          
-             if ((ulCurTime > gCMUsage.info.aulCms[DISP_TUBE_DI_LIFE])
-                     && (iMask & (1 << DISP_TUBE_DI)))
+             if ((iMask & (1 << DISP_TUBE_DI)))
              {
-                 tmp = gGlobalParam.CMParam.aulCms[DISP_TUBE_DI_LIFE] -
-                     (DispGetCurSecond() - gCMUsage.info.aulCms[DISP_TUBE_DI_LIFE])/ DISP_DAYININSECOND;
+                 tmp = gCMUsage.info.aulCms[DISP_TUBE_DI_LIFE];
                  if (tmp < 0) tmp = 0;
-
                  if (pSubReq->ulMap & (1 << DISP_TUBE_DI_LIFE))
                  {
-                     *(uint16_t *)pMsg = tmp;
+                     *(uint32_t *)pMsg = tmp;
                      ulDstMap |= (1 << DISP_TUBE_DI_LIFE);
-                     pMsg += 2;
+                     pMsg += 4;
                  }                 
              } 
+             
              pSubRsp->ulMap = ulDstMap;
              pHoRsp->hdr.ucLen += pMsg - pSubRsp->aucData;
         }
@@ -10977,53 +10965,49 @@ int CCB::CanCcbAfDataHOExtCmInfoQryMsg(MAIN_CANITF_MSG_STRU *pCanItfMsg)
         {
              uint32_t ulDstMap  = 0;
              int      iMask = m_cMas[gGlobalParam.iMachineType].aulMask[0];
-             int      tmp;
+             uint32_t tmp;
              uint8_t  *pMsg = pSubRsp->aucData;
          
              if (iMask & (1 << DISP_PRE_PACK))
              {
                  tmp = gGlobalParam.CMParam.aulCms[DISP_PRE_PACKLIFEDAY] ;
-
                  if (tmp < 0) tmp = 0;
-
                  if (pSubReq->ulMap & (1 << DISP_PRE_PACKLIFEDAY))
                  {
-                     *(uint16_t *)pMsg = tmp;
+                     *(uint32_t *)pMsg = tmp;
                      ulDstMap |= (1 << DISP_PRE_PACKLIFEDAY);
-                     pMsg += 2;
+                     pMsg += 4;
                  }
 
                  tmp = gGlobalParam.CMParam.aulCms[DISP_PRE_PACKLIFEL] ;
                  if (tmp < 0) tmp = 0;
                  if (pSubReq->ulMap & (1 << DISP_PRE_PACKLIFEL))
                  {
-                     *(uint16_t *)pMsg = tmp;
+                     *(uint32_t *)pMsg = tmp;
                      ulDstMap |= (1 << DISP_PRE_PACKLIFEL);
-                     pMsg += 2;
+                     pMsg += 4;
                  }
          
              }    
-             //2018.10.22 AC PACK
+
              if (iMask & (1 << DISP_AC_PACK))
              {
                  tmp = gGlobalParam.CMParam.aulCms[DISP_AC_PACKLIFEDAY];
-
                  if (tmp < 0) tmp = 0;
-
                  if (pSubReq->ulMap & (1 << DISP_AC_PACKLIFEDAY))
                  {
-                     *(uint16_t *)pMsg = tmp;
+                     *(uint32_t *)pMsg = tmp;
                      ulDstMap |= (1 << DISP_AC_PACKLIFEDAY);
-                     pMsg += 2;
+                     pMsg += 4;
                  }
 
                  tmp = gGlobalParam.CMParam.aulCms[DISP_AC_PACKLIFEL];
                  if (tmp < 0) tmp = 0;
                  if (pSubReq->ulMap & (1 << DISP_AC_PACKLIFEL))
                  {
-                     *(uint16_t *)pMsg = tmp;
+                     *(uint32_t *)pMsg = tmp;
                      ulDstMap |= (1 << DISP_AC_PACKLIFEL);
-                     pMsg += 2;
+                     pMsg += 4;
                  }
          
              }
@@ -11031,52 +11015,44 @@ int CCB::CanCcbAfDataHOExtCmInfoQryMsg(MAIN_CANITF_MSG_STRU *pCanItfMsg)
              //2018.10.12 T_Pack
              if ((iMask & (1 << DISP_T_PACK)))
              {
-
                  tmp = gGlobalParam.CMParam.aulCms[DISP_T_PACKLIFEDAY] ;
-
                  if (tmp < 0) tmp = 0;
-
                  if (pSubReq->ulMap & (1 << DISP_T_PACKLIFEDAY))
                  {
-                     *(uint16_t *)pMsg = tmp;
+                     *(uint32_t *)pMsg = tmp;
                      ulDstMap |= (1 << DISP_T_PACKLIFEDAY);
-                     pMsg += 2;
+                     pMsg += 4;
                  }
 
                  tmp = gGlobalParam.CMParam.aulCms[DISP_T_PACKLIFEL] ;
                  if (tmp < 0) tmp = 0;
                  if (pSubReq->ulMap & (1 << DISP_T_PACKLIFEL))
                  {
-                     *(uint16_t *)pMsg = tmp;
+                     *(uint32_t *)pMsg = tmp;
                      ulDstMap |= (1 << DISP_T_PACKLIFEL);
-                     pMsg += 2;
+                     pMsg += 4;
                  }                 
          
              }
-             //
-         
-             // check pack
+
              if ((iMask & (1 << DISP_P_PACK)))
              {
-
                  tmp = gGlobalParam.CMParam.aulCms[DISP_P_PACKLIFEDAY] ;
-
                  if (tmp < 0) tmp = 0;
-
                  if (pSubReq->ulMap & (1 << DISP_P_PACKLIFEDAY))
                  {
-                     *(uint16_t *)pMsg = tmp;
+                     *(uint32_t *)pMsg = tmp;
                      ulDstMap |= (1 << DISP_P_PACKLIFEDAY);
-                     pMsg += 2;
+                     pMsg += 4;
                  }
 
                  tmp = gGlobalParam.CMParam.aulCms[DISP_P_PACKLIFEL];
                  if (tmp < 0) tmp = 0;
                  if (pSubReq->ulMap & (1 << DISP_P_PACKLIFEL))
                  {
-                     *(uint16_t *)pMsg = tmp;
+                     *(uint32_t *)pMsg = tmp;
                      ulDstMap |= (1 << DISP_P_PACKLIFEL);
-                     pMsg += 2;
+                     pMsg += 4;
                  }                  
          
              }
@@ -11084,23 +11060,21 @@ int CCB::CanCcbAfDataHOExtCmInfoQryMsg(MAIN_CANITF_MSG_STRU *pCanItfMsg)
              if ( (iMask & (1 << DISP_U_PACK)))
              {
                  tmp = gGlobalParam.CMParam.aulCms[DISP_U_PACKLIFEDAY];
-
                  if (tmp < 0) tmp = 0;
-
                  if (pSubReq->ulMap & (1 << DISP_U_PACKLIFEDAY))
                  {
-                     *(uint16_t *)pMsg = tmp;
+                     *(uint32_t *)pMsg = tmp;
                      ulDstMap |= (1 << DISP_U_PACKLIFEDAY);
-                     pMsg += 2;
+                     pMsg += 4;
                  }
 
                  tmp = gGlobalParam.CMParam.aulCms[DISP_U_PACKLIFEL];
                  if (tmp < 0) tmp = 0;
                  if (pSubReq->ulMap & (1 << DISP_U_PACKLIFEL))
                  {
-                     *(uint16_t *)pMsg = tmp;
+                     *(uint32_t *)pMsg = tmp;
                      ulDstMap |= (1 << DISP_U_PACKLIFEL);
-                     pMsg += 2;
+                     pMsg += 4;
                  }                     
          
              } 
@@ -11108,93 +11082,86 @@ int CCB::CanCcbAfDataHOExtCmInfoQryMsg(MAIN_CANITF_MSG_STRU *pCanItfMsg)
              if ((iMask & (1 << DISP_AT_PACK)))
              {
                  tmp = gGlobalParam.CMParam.aulCms[DISP_AT_PACKLIFEDAY];
-             
                  if (tmp < 0) tmp = 0;
-             
                  if (pSubReq->ulMap & (1 << DISP_AT_PACKLIFEDAY))
                  {
-                     *(uint16_t *)pMsg = tmp;
+                     *(uint32_t *)pMsg = tmp;
                      ulDstMap |= (1 << DISP_AT_PACKLIFEDAY);
-                     pMsg += 2;
+                     pMsg += 4;
                  }
              
                  tmp = gGlobalParam.CMParam.aulCms[DISP_AT_PACKLIFEL];
                  if (tmp < 0) tmp = 0;
                  if (pSubReq->ulMap & (1 << DISP_AT_PACKLIFEL))
                  {
-                     *(uint16_t *)pMsg = tmp;
+                     *(uint32_t *)pMsg = tmp;
                      ulDstMap |= (1 << DISP_AT_PACKLIFEL);
-                     pMsg += 2;
+                     pMsg += 4;
                  }                     
              }         
-             // check pack
+
              if ((iMask & (1 << DISP_H_PACK)))
              {
                  tmp = gGlobalParam.CMParam.aulCms[DISP_H_PACKLIFEDAY] ;
-
                  if (tmp < 0) tmp = 0;
-
                  if (pSubReq->ulMap & (1 << DISP_H_PACKLIFEDAY))
                  {
-                     *(uint16_t *)pMsg = tmp;
+                     *(uint32_t *)pMsg = tmp;
                      ulDstMap |= (1 << DISP_H_PACKLIFEDAY);
-                     pMsg += 2;
+                     pMsg += 4;
                  }
 
                  tmp = gGlobalParam.CMParam.aulCms[DISP_H_PACKLIFEL];
                  if (tmp < 0) tmp = 0;
                  if (pSubReq->ulMap & (1 << DISP_H_PACKLIFEL))
                  {
-                     *(uint16_t *)pMsg = tmp;
+                     *(uint32_t *)pMsg = tmp;
                      ulDstMap |= (1 << DISP_H_PACKLIFEL);
-                     pMsg += 2;
+                     pMsg += 4;
                  }                        
          
              }
          
-             // check uv
              if ((iMask & (1 << DISP_N1_UV)))
              {
                  tmp = gGlobalParam.CMParam.aulCms[DISP_N1_UVLIFEDAY];
-
                  if (tmp < 0) tmp = 0;
-
                  if (pSubReq->ulMap & (1 << DISP_N1_UVLIFEDAY))
                  {
-                     *(uint16_t *)pMsg = tmp;
+                     *(uint32_t *)pMsg = tmp;
                      ulDstMap |= (1 << DISP_N1_UVLIFEDAY);
-                     pMsg += 2;
+                     pMsg += 4;
                  }
 
                  tmp = gGlobalParam.CMParam.aulCms[DISP_N1_UVLIFEHOUR];
                  if (tmp < 0) tmp = 0;
                  if (pSubReq->ulMap & (1 << DISP_N1_UVLIFEHOUR))
                  {
-                     *(uint16_t *)pMsg = tmp;
+                     *(uint32_t *)pMsg = tmp;
                      ulDstMap |= (1 << DISP_N1_UVLIFEHOUR);
-                     pMsg += 2;
+                     pMsg += 4;
                  }                    
          
              }        
+             
              if ((iMask & (1 << DISP_N2_UV)))
              {
                  tmp = gGlobalParam.CMParam.aulCms[DISP_N2_UVLIFEDAY] ;
                  if (tmp < 0) tmp = 0;
-
                  if (pSubReq->ulMap & (1 << DISP_N2_UVLIFEDAY))
                  {
-                     *(uint16_t *)pMsg = tmp;
+                     *(uint32_t *)pMsg = tmp;
                      ulDstMap |= (1 << DISP_N2_UVLIFEDAY);
-                     pMsg += 2;
+                     pMsg += 4;
                  }
 
                  tmp = gGlobalParam.CMParam.aulCms[DISP_N2_UVLIFEHOUR] ;
                  if (tmp < 0) tmp = 0;
                  if (pSubReq->ulMap & (1 << DISP_N2_UVLIFEHOUR))
                  {
-                     *(uint16_t *)pMsg = tmp;
+                     *(uint32_t *)pMsg = tmp;
                      ulDstMap |= (1 << DISP_N2_UVLIFEHOUR);
-                     pMsg += 2;
+                     pMsg += 4;
                  }                
              }        
          
@@ -11202,21 +11169,20 @@ int CCB::CanCcbAfDataHOExtCmInfoQryMsg(MAIN_CANITF_MSG_STRU *pCanItfMsg)
              {
                  tmp = gGlobalParam.CMParam.aulCms[DISP_N3_UVLIFEDAY] ;
                  if (tmp < 0) tmp = 0;
-
                  if (pSubReq->ulMap & (1 << DISP_N3_UVLIFEDAY))
                  {
-                     *(uint16_t *)pMsg = tmp;
+                     *(uint32_t *)pMsg = tmp;
                      ulDstMap |= (1 << DISP_N3_UVLIFEDAY);
-                     pMsg += 2;
+                     pMsg += 4;
                  }
 
                  tmp = gGlobalParam.CMParam.aulCms[DISP_N3_UVLIFEHOUR] ;
                  if (tmp < 0) tmp = 0;
                  if (pSubReq->ulMap & (1 << DISP_N3_UVLIFEHOUR))
                  {
-                     *(uint16_t *)pMsg = tmp;
+                     *(uint32_t *)pMsg = tmp;
                      ulDstMap |= (1 << DISP_N3_UVLIFEHOUR);
-                     pMsg += 2;
+                     pMsg += 4;
                  }                   
              }        
          
@@ -11224,21 +11190,20 @@ int CCB::CanCcbAfDataHOExtCmInfoQryMsg(MAIN_CANITF_MSG_STRU *pCanItfMsg)
              {
                  tmp = gGlobalParam.CMParam.aulCms[DISP_N4_UVLIFEDAY] ;
                  if (tmp < 0) tmp = 0;
-
                  if (pSubReq->ulMap & (1 << DISP_N4_UVLIFEDAY))
                  {
-                     *(uint16_t *)pMsg = tmp;
+                     *(uint32_t *)pMsg = tmp;
                      ulDstMap |= (1 << DISP_N4_UVLIFEDAY);
-                     pMsg += 2;
+                     pMsg += 4;
                  }
 
                  tmp = gGlobalParam.CMParam.aulCms[DISP_N4_UVLIFEHOUR];
                  if (tmp < 0) tmp = 0;
                  if (pSubReq->ulMap & (1 << DISP_N4_UVLIFEHOUR))
                  {
-                     *(uint16_t *)pMsg = tmp;
+                     *(uint32_t *)pMsg = tmp;
                      ulDstMap |= (1 << DISP_N4_UVLIFEHOUR);
-                     pMsg += 2;
+                     pMsg += 4;
                  }                   
          
              }        
@@ -11247,21 +11212,20 @@ int CCB::CanCcbAfDataHOExtCmInfoQryMsg(MAIN_CANITF_MSG_STRU *pCanItfMsg)
              {
                  tmp = gGlobalParam.CMParam.aulCms[DISP_N5_UVLIFEDAY] ;
                  if (tmp < 0) tmp = 0;
-
                  if (pSubReq->ulMap & (1 << DISP_N5_UVLIFEDAY))
                  {
-                     *(uint16_t *)pMsg = tmp;
+                     *(uint32_t *)pMsg = tmp;
                      ulDstMap |= (1 << DISP_N5_UVLIFEDAY);
-                     pMsg += 2;
+                     pMsg += 4;
                  }
 
                  tmp = gGlobalParam.CMParam.aulCms[DISP_N5_UVLIFEHOUR] ;
                  if (tmp < 0) tmp = 0;
                  if (pSubReq->ulMap & (1 << DISP_N5_UVLIFEHOUR))
                  {
-                     *(uint16_t *)pMsg = tmp;
+                     *(uint32_t *)pMsg = tmp;
                      ulDstMap |= (1 << DISP_N5_UVLIFEHOUR);
-                     pMsg += 2;
+                     pMsg += 4;
                  }            
              }        
          
@@ -11269,12 +11233,11 @@ int CCB::CanCcbAfDataHOExtCmInfoQryMsg(MAIN_CANITF_MSG_STRU *pCanItfMsg)
              {
                  tmp = gGlobalParam.CMParam.aulCms[DISP_W_FILTERLIFE];
                  if (tmp < 0) tmp = 0;
-
                  if (pSubReq->ulMap & (1 << DISP_W_FILTERLIFE))
                  {
-                     *(uint16_t *)pMsg = tmp;
+                     *(uint32_t *)pMsg = tmp;
                      ulDstMap |= (1 << DISP_W_FILTERLIFE);
-                     pMsg += 2;
+                     pMsg += 4;
                  }
                  
              }
@@ -11283,12 +11246,11 @@ int CCB::CanCcbAfDataHOExtCmInfoQryMsg(MAIN_CANITF_MSG_STRU *pCanItfMsg)
              {
                  tmp = gGlobalParam.CMParam.aulCms[DISP_T_B_FILTERLIFE] ;
                  if (tmp < 0) tmp = 0;
-
                  if (pSubReq->ulMap & (1 << DISP_T_B_FILTERLIFE))
                  {
-                     *(uint16_t *)pMsg = tmp;
+                     *(uint32_t *)pMsg = tmp;
                      ulDstMap |= (1 << DISP_T_B_FILTERLIFE);
-                     pMsg += 2;
+                     pMsg += 4;
                  }                 
              }
          
@@ -11296,12 +11258,11 @@ int CCB::CanCcbAfDataHOExtCmInfoQryMsg(MAIN_CANITF_MSG_STRU *pCanItfMsg)
              {
                  tmp = gGlobalParam.CMParam.aulCms[DISP_T_A_FILTERLIFE] ;
                  if (tmp < 0) tmp = 0;
-
                  if (pSubReq->ulMap & (1 << DISP_T_A_FILTERLIFE))
                  {
-                     *(uint16_t *)pMsg = tmp;
+                     *(uint32_t *)pMsg = tmp;
                      ulDstMap |= (1 << DISP_T_A_FILTERLIFE);
-                     pMsg += 2;
+                     pMsg += 4;
                  }                 
                  
              }    
@@ -11310,12 +11271,11 @@ int CCB::CanCcbAfDataHOExtCmInfoQryMsg(MAIN_CANITF_MSG_STRU *pCanItfMsg)
              {
                  tmp = gGlobalParam.CMParam.aulCms[DISP_TUBE_FILTERLIFE] ;
                  if (tmp < 0) tmp = 0;
-
                  if (pSubReq->ulMap & (1 << DISP_TUBE_FILTERLIFE))
                  {
-                     *(uint16_t *)pMsg = tmp;
+                     *(uint32_t *)pMsg = tmp;
                      ulDstMap |= (1 << DISP_TUBE_FILTERLIFE);
-                     pMsg += 2;
+                     pMsg += 4;
                  }                 
                                   
              }  
@@ -11324,14 +11284,14 @@ int CCB::CanCcbAfDataHOExtCmInfoQryMsg(MAIN_CANITF_MSG_STRU *pCanItfMsg)
              {
                  tmp = gGlobalParam.CMParam.aulCms[DISP_TUBE_DI_LIFE];
                  if (tmp < 0) tmp = 0;
-
                  if (pSubReq->ulMap & (1 << DISP_TUBE_DI_LIFE))
                  {
-                     *(uint16_t *)pMsg = tmp;
+                     *(uint32_t *)pMsg = tmp;
                      ulDstMap |= (1 << DISP_TUBE_DI_LIFE);
-                     pMsg += 2;
+                     pMsg += 4;
                  }                 
              } 
+             
              pSubRsp->ulMap = ulDstMap;
              pHoRsp->hdr.ucLen += pMsg - pSubRsp->aucData;
         }
@@ -11437,7 +11397,7 @@ int CCB::CanCcbAfDataHOExtCmResetMsg(MAIN_CANITF_MSG_STRU *pCanItfMsg)
        {
            uint32_t ulDstMap  = 0;
            int      iMask = m_cMas[gGlobalParam.iMachineType].aulMask[0];
-           int      tmp;
+           uint32_t tmp;
            uint8_t  *pMsg = pSubRsp->aucData;
    
            // retrive information
@@ -11451,373 +11411,314 @@ int CCB::CanCcbAfDataHOExtCmResetMsg(MAIN_CANITF_MSG_STRU *pCanItfMsg)
                 {
                 case DISP_PRE_PACK:
                     {
+                        tmp = gGlobalParam.CMParam.aulCms[DISP_PRE_PACKLIFEDAY] ;
+                        if (tmp < 0) tmp = 0;
+                        
                         {
-                            tmp = gGlobalParam.CMParam.aulCms[DISP_PRE_PACKLIFEDAY] ;
-                        
-                            if (tmp < 0) tmp = 0;
-                        
-                            {
-                                *(uint16_t *)pMsg = tmp;
-                                ulDstMap |= (1 << DISP_PRE_PACKLIFEDAY);
-                                pMsg += 2;
-                            }
-                        
-                            tmp = gGlobalParam.CMParam.aulCms[DISP_PRE_PACKLIFEL] ;
-                            if (tmp < 0) tmp = 0;
-
-                            {
-                                *(uint16_t *)pMsg = tmp;
-                                ulDstMap |= (1 << DISP_PRE_PACKLIFEL);
-                                pMsg += 2;
-                            }
-                        
+                            *(uint32_t *)pMsg = tmp;
+                            ulDstMap |= (1 << DISP_PRE_PACKLIFEDAY);
+                            pMsg += 4;
                         }
+                    
+                        tmp = gGlobalParam.CMParam.aulCms[DISP_PRE_PACKLIFEL] ;
+                        if (tmp < 0) tmp = 0;
+                        
+                        {
+                            *(uint32_t *)pMsg = tmp;
+                            ulDstMap |= (1 << DISP_PRE_PACKLIFEL);
+                            pMsg += 4;
+                        }
+                        
                     }
                     break;
 #ifdef AUTO_CM_RESET                    
                 case DISP_AC_PACK:
                     {
-                        //2018.10.22 AC PACK
+                        tmp = gGlobalParam.CMParam.aulCms[DISP_AC_PACKLIFEDAY];
+                        if (tmp < 0) tmp = 0;
+                    
                         {
-                            tmp = gGlobalParam.CMParam.aulCms[DISP_AC_PACKLIFEDAY];
-                        
-                            if (tmp < 0) tmp = 0;
-                        
-                            {
-                                *(uint16_t *)pMsg = tmp;
-                                ulDstMap |= (1 << DISP_AC_PACKLIFEDAY);
-                                pMsg += 2;
-                            }
-                        
-                            tmp = gGlobalParam.CMParam.aulCms[DISP_AC_PACKLIFEL];
-                            if (tmp < 0) tmp = 0;
-
-                            {
-                                *(uint16_t *)pMsg = tmp;
-                                ulDstMap |= (1 << DISP_AC_PACKLIFEL);
-                                pMsg += 2;
-                            }
-                        
+                            *(uint32_t *)pMsg = tmp;
+                            ulDstMap |= (1 << DISP_AC_PACKLIFEDAY);
+                            pMsg += 4;
                         }
+                    
+                        tmp = gGlobalParam.CMParam.aulCms[DISP_AC_PACKLIFEL];
+                        if (tmp < 0) tmp = 0;
+
+                        {
+                            *(uint32_t *)pMsg = tmp;
+                            ulDstMap |= (1 << DISP_AC_PACKLIFEL);
+                            pMsg += 4;
+                        }
+                        
                     }
                     break;
 #endif                    
                 case DISP_T_PACK:
                     {
-                        //2018.10.12 T_Pack
+                        tmp = gGlobalParam.CMParam.aulCms[DISP_T_PACKLIFEDAY] ;
+                        if (tmp < 0) tmp = 0;
+                    
                         {
-                        
-                            tmp = gGlobalParam.CMParam.aulCms[DISP_T_PACKLIFEDAY] ;
-                        
-                            if (tmp < 0) tmp = 0;
-                        
-                            {
-                                *(uint16_t *)pMsg = tmp;
-                                ulDstMap |= (1 << DISP_T_PACKLIFEDAY);
-                                pMsg += 2;
-                            }
-                        
-                            tmp = gGlobalParam.CMParam.aulCms[DISP_T_PACKLIFEL] ;
-                            if (tmp < 0) tmp = 0;
-
-                            {
-                                *(uint16_t *)pMsg = tmp;
-                                ulDstMap |= (1 << DISP_T_PACKLIFEL);
-                                pMsg += 2;
-                            }                 
-                        
+                            *(uint32_t *)pMsg = tmp;
+                            ulDstMap |= (1 << DISP_T_PACKLIFEDAY);
+                            pMsg += 4;
                         }
+                    
+                        tmp = gGlobalParam.CMParam.aulCms[DISP_T_PACKLIFEL] ;
+                        if (tmp < 0) tmp = 0;
+
+                        {
+                            *(uint32_t *)pMsg = tmp;
+                            ulDstMap |= (1 << DISP_T_PACKLIFEL);
+                            pMsg += 4;
+                        }                 
+                        
                     }
                     break;
 #ifdef AUTO_CM_RESET                    
                 case DISP_P_PACK:
                     {
+                        tmp = gGlobalParam.CMParam.aulCms[DISP_P_PACKLIFEDAY] ;
+                        if (tmp < 0) tmp = 0;
+                    
                         {
-                        
-                            tmp = gGlobalParam.CMParam.aulCms[DISP_P_PACKLIFEDAY] ;
-                        
-                            if (tmp < 0) tmp = 0;
-                        
-                            {
-                                *(uint16_t *)pMsg = tmp;
-                                ulDstMap |= (1 << DISP_P_PACKLIFEDAY);
-                                pMsg += 2;
-                            }
-                        
-                            tmp = gGlobalParam.CMParam.aulCms[DISP_P_PACKLIFEL];
-                            if (tmp < 0) tmp = 0;
-
-                            {
-                                *(uint16_t *)pMsg = tmp;
-                                ulDstMap |= (1 << DISP_P_PACKLIFEL);
-                                pMsg += 2;
-                            }                  
-                        
+                            *(uint32_t *)pMsg = tmp;
+                            ulDstMap |= (1 << DISP_P_PACKLIFEDAY);
+                            pMsg += 4;
                         }
+                    
+                        tmp = gGlobalParam.CMParam.aulCms[DISP_P_PACKLIFEL];
+                        if (tmp < 0) tmp = 0;
+
+                        {
+                            *(uint32_t *)pMsg = tmp;
+                            ulDstMap |= (1 << DISP_P_PACKLIFEL);
+                            pMsg += 4;
+                        }                  
                     }
                     break;
                 case DISP_U_PACK:
                     {
+                        tmp = gGlobalParam.CMParam.aulCms[DISP_U_PACKLIFEDAY];
+                        if (tmp < 0) tmp = 0;
+                    
                         {
-                            tmp = gGlobalParam.CMParam.aulCms[DISP_U_PACKLIFEDAY];
-                        
-                            if (tmp < 0) tmp = 0;
-                        
-                            {
-                                *(uint16_t *)pMsg = tmp;
-                                ulDstMap |= (1 << DISP_U_PACKLIFEDAY);
-                                pMsg += 2;
-                            }
-                        
-                            tmp = gGlobalParam.CMParam.aulCms[DISP_U_PACKLIFEL];
-                            if (tmp < 0) tmp = 0;
-
-                            {
-                                *(uint16_t *)pMsg = tmp;
-                                ulDstMap |= (1 << DISP_U_PACKLIFEL);
-                                pMsg += 2;
-                            }                     
-                        
+                            *(uint32_t *)pMsg = tmp;
+                            ulDstMap |= (1 << DISP_U_PACKLIFEDAY);
+                            pMsg += 4;
                         }
+                    
+                        tmp = gGlobalParam.CMParam.aulCms[DISP_U_PACKLIFEL];
+                        if (tmp < 0) tmp = 0;
+
+                        {
+                            *(uint32_t *)pMsg = tmp;
+                            ulDstMap |= (1 << DISP_U_PACKLIFEL);
+                            pMsg += 4;
+                        }                     
                     }
                     break;
                 case DISP_AT_PACK:
                     {
+                        tmp = gGlobalParam.CMParam.aulCms[DISP_AT_PACKLIFEDAY];
+                        if (tmp < 0) tmp = 0;
+                    
                         {
-                            tmp = gGlobalParam.CMParam.aulCms[DISP_AT_PACKLIFEDAY];
-                        
-                            if (tmp < 0) tmp = 0;
-                        
-                            {
-                                *(uint16_t *)pMsg = tmp;
-                                ulDstMap |= (1 << DISP_AT_PACKLIFEDAY);
-                                pMsg += 2;
-                            }
-                        
-                            tmp = gGlobalParam.CMParam.aulCms[DISP_U_PACKLIFEL];
-                            if (tmp < 0) tmp = 0;
-                            {
-                                *(uint16_t *)pMsg = tmp;
-                                ulDstMap |= (1 << DISP_AT_PACKLIFEL);
-                                pMsg += 2;
-                            }                     
+                            *(uint32_t *)pMsg = tmp;
+                            ulDstMap |= (1 << DISP_AT_PACKLIFEDAY);
+                            pMsg += 4;
                         }
+                    
+                        tmp = gGlobalParam.CMParam.aulCms[DISP_U_PACKLIFEL];
+                        if (tmp < 0) tmp = 0;
+                        {
+                            *(uint32_t *)pMsg = tmp;
+                            ulDstMap |= (1 << DISP_AT_PACKLIFEL);
+                            pMsg += 4;
+                        }                     
                     }
                     break;
                 case DISP_H_PACK:
                     {
-                        // check pack
+                        tmp = gGlobalParam.CMParam.aulCms[DISP_H_PACKLIFEDAY] ;
+                        if (tmp < 0) tmp = 0;
+                    
                         {
-                            tmp = gGlobalParam.CMParam.aulCms[DISP_H_PACKLIFEDAY] ;
-                        
-                            if (tmp < 0) tmp = 0;
-                        
-                            {
-                                *(uint16_t *)pMsg = tmp;
-                                ulDstMap |= (1 << DISP_H_PACKLIFEDAY);
-                                pMsg += 2;
-                            }
-                        
-                            tmp = gGlobalParam.CMParam.aulCms[DISP_H_PACKLIFEL];
-                            if (tmp < 0) tmp = 0;
-                            {
-                                *(uint16_t *)pMsg = tmp;
-                                ulDstMap |= (1 << DISP_H_PACKLIFEL);
-                                pMsg += 2;
-                            }                        
-                        
+                            *(uint32_t *)pMsg = tmp;
+                            ulDstMap |= (1 << DISP_H_PACKLIFEDAY);
+                            pMsg += 4;
                         }
-                        
+                    
+                        tmp = gGlobalParam.CMParam.aulCms[DISP_H_PACKLIFEL];
+                        if (tmp < 0) tmp = 0;
+                        {
+                            *(uint32_t *)pMsg = tmp;
+                            ulDstMap |= (1 << DISP_H_PACKLIFEL);
+                            pMsg += 4;
+                        }                        
                     }
                     break;
 #endif                    
                 case DISP_N1_UV:
                     {
-                        // check uv
+                        tmp = gGlobalParam.CMParam.aulCms[DISP_N1_UVLIFEDAY];
+                        if (tmp < 0) tmp = 0;
+                    
                         {
-                            tmp = gGlobalParam.CMParam.aulCms[DISP_N1_UVLIFEDAY];
-                        
-                            if (tmp < 0) tmp = 0;
-                        
-                            {
-                                *(uint16_t *)pMsg = tmp;
-                                ulDstMap |= (1 << DISP_N1_UVLIFEDAY);
-                                pMsg += 2;
-                            }
-                        
-                            tmp = gGlobalParam.CMParam.aulCms[DISP_N1_UVLIFEHOUR];
-                            if (tmp < 0) tmp = 0;
-                            {
-                                *(uint16_t *)pMsg = tmp;
-                                ulDstMap |= (1 << DISP_N1_UVLIFEHOUR);
-                                pMsg += 2;
-                            }                    
-                        
-                        }      
+                            *(uint32_t *)pMsg = tmp;
+                            ulDstMap |= (1 << DISP_N1_UVLIFEDAY);
+                            pMsg += 4;
+                        }
+                    
+                        tmp = gGlobalParam.CMParam.aulCms[DISP_N1_UVLIFEHOUR];
+                        if (tmp < 0) tmp = 0;
+                        {
+                            *(uint32_t *)pMsg = tmp;
+                            ulDstMap |= (1 << DISP_N1_UVLIFEHOUR);
+                            pMsg += 4;
+                        }                        
                     }
                     break;
                 case DISP_N2_UV:
                     {
+                        tmp = gGlobalParam.CMParam.aulCms[DISP_N2_UVLIFEDAY] ;
+                        if (tmp < 0) tmp = 0;
+                    
                         {
-                            tmp = gGlobalParam.CMParam.aulCms[DISP_N2_UVLIFEDAY] ;
-                            if (tmp < 0) tmp = 0;
-                        
-                            {
-                                *(uint16_t *)pMsg = tmp;
-                                ulDstMap |= (1 << DISP_N2_UVLIFEDAY);
-                                pMsg += 2;
-                            }
-                        
-                            tmp = gGlobalParam.CMParam.aulCms[DISP_N2_UVLIFEHOUR] ;
-                            if (tmp < 0) tmp = 0;
-                            {
-                                *(uint16_t *)pMsg = tmp;
-                                ulDstMap |= (1 << DISP_N2_UVLIFEHOUR);
-                                pMsg += 2;
-                            }                
-                        }        
+                            *(uint32_t *)pMsg = tmp;
+                            ulDstMap |= (1 << DISP_N2_UVLIFEDAY);
+                            pMsg += 4;
+                        }
+                    
+                        tmp = gGlobalParam.CMParam.aulCms[DISP_N2_UVLIFEHOUR] ;
+                        if (tmp < 0) tmp = 0;
+                        {
+                            *(uint32_t *)pMsg = tmp;
+                            ulDstMap |= (1 << DISP_N2_UVLIFEHOUR);
+                            pMsg += 4;
+                        }                       
                     }
                     break;
                 case DISP_N3_UV:
                     {
+                        tmp = gGlobalParam.CMParam.aulCms[DISP_N3_UVLIFEDAY] ;
+                        if (tmp < 0) tmp = 0;
+                    
                         {
-                            tmp = gGlobalParam.CMParam.aulCms[DISP_N3_UVLIFEDAY] ;
-                            if (tmp < 0) tmp = 0;
-                        
-                            {
-                                *(uint16_t *)pMsg = tmp;
-                                ulDstMap |= (1 << DISP_N3_UVLIFEDAY);
-                                pMsg += 2;
-                            }
-                        
-                            tmp = gGlobalParam.CMParam.aulCms[DISP_N3_UVLIFEHOUR] ;
-                            if (tmp < 0) tmp = 0;
-                            {
-                                *(uint16_t *)pMsg = tmp;
-                                ulDstMap |= (1 << DISP_N3_UVLIFEHOUR);
-                                pMsg += 2;
-                            }                   
-                        }        
-                        
+                            *(uint32_t *)pMsg = tmp;
+                            ulDstMap |= (1 << DISP_N3_UVLIFEDAY);
+                            pMsg += 4;
+                        }
+                    
+                        tmp = gGlobalParam.CMParam.aulCms[DISP_N3_UVLIFEHOUR] ;
+                        if (tmp < 0) tmp = 0;
+                        {
+                            *(uint32_t *)pMsg = tmp;
+                            ulDstMap |= (1 << DISP_N3_UVLIFEHOUR);
+                            pMsg += 4;
+                        }                     
                     }
                     break;
                 case DISP_N4_UV:
                     {
+                        tmp = gGlobalParam.CMParam.aulCms[DISP_N4_UVLIFEDAY] ;
+                        if (tmp < 0) tmp = 0;
+                    
                         {
-                            tmp = gGlobalParam.CMParam.aulCms[DISP_N4_UVLIFEDAY] ;
-                            if (tmp < 0) tmp = 0;
-                        
-                            {
-                                *(uint16_t *)pMsg = tmp;
-                                ulDstMap |= (1 << DISP_N4_UVLIFEDAY);
-                                pMsg += 2;
-                            }
-                        
-                            tmp = gGlobalParam.CMParam.aulCms[DISP_N4_UVLIFEHOUR];
-                            if (tmp < 0) tmp = 0;
-                            {
-                                *(uint16_t *)pMsg = tmp;
-                                ulDstMap |= (1 << DISP_N4_UVLIFEHOUR);
-                                pMsg += 2;
-                            }                   
-                        
-                        }  
+                            *(uint32_t *)pMsg = tmp;
+                            ulDstMap |= (1 << DISP_N4_UVLIFEDAY);
+                            pMsg += 4;
+                        }
+                    
+                        tmp = gGlobalParam.CMParam.aulCms[DISP_N4_UVLIFEHOUR];
+                        if (tmp < 0) tmp = 0;
+                        {
+                            *(uint32_t *)pMsg = tmp;
+                            ulDstMap |= (1 << DISP_N4_UVLIFEHOUR);
+                            pMsg += 4;
+                        }                   
                     }
                     break;
                 case DISP_N5_UV:
                     {
+                        tmp = gGlobalParam.CMParam.aulCms[DISP_N5_UVLIFEDAY] ;
+                        if (tmp < 0) tmp = 0;
+                    
                         {
-                            tmp = gGlobalParam.CMParam.aulCms[DISP_N5_UVLIFEDAY] ;
-                            if (tmp < 0) tmp = 0;
-                        
-                            {
-                                *(uint16_t *)pMsg = tmp;
-                                ulDstMap |= (1 << DISP_N5_UVLIFEDAY);
-                                pMsg += 2;
-                            }
-                        
-                            tmp = gGlobalParam.CMParam.aulCms[DISP_N5_UVLIFEHOUR] ;
-                            if (tmp < 0) tmp = 0;
-                            {
-                                *(uint16_t *)pMsg = tmp;
-                                ulDstMap |= (1 << DISP_N5_UVLIFEHOUR);
-                                pMsg += 2;
-                            }            
-                        }   
+                            *(uint32_t *)pMsg = tmp;
+                            ulDstMap |= (1 << DISP_N5_UVLIFEDAY);
+                            pMsg += 4;
+                        }
+                    
+                        tmp = gGlobalParam.CMParam.aulCms[DISP_N5_UVLIFEHOUR] ;
+                        if (tmp < 0) tmp = 0;
+                        {
+                            *(uint32_t *)pMsg = tmp;
+                            ulDstMap |= (1 << DISP_N5_UVLIFEHOUR);
+                            pMsg += 4;
+                        }              
                     }
                     break;
                 case DISP_W_FILTER:
                     {
+                        tmp = gGlobalParam.CMParam.aulCms[DISP_W_FILTERLIFE];
+                        if (tmp < 0) tmp = 0;
+                    
                         {
-                            tmp = gGlobalParam.CMParam.aulCms[DISP_W_FILTERLIFE];
-                            if (tmp < 0) tmp = 0;
-                        
-                            {
-                                *(uint16_t *)pMsg = tmp;
-                                ulDstMap |= (1 << DISP_W_FILTERLIFE);
-                                pMsg += 2;
-                            }
-                            
+                            *(uint32_t *)pMsg = tmp;
+                            ulDstMap |= (1 << DISP_W_FILTERLIFE);
+                            pMsg += 4;
                         }
                     }
                     break;
                 case DISP_T_B_FILTER:
                     {
+                        tmp = gGlobalParam.CMParam.aulCms[DISP_T_B_FILTERLIFE] ;
+                        if (tmp < 0) tmp = 0;
+                    
                         {
-                            tmp = gGlobalParam.CMParam.aulCms[DISP_T_B_FILTERLIFE] ;
-                            if (tmp < 0) tmp = 0;
-                        
-                            {
-                                *(uint16_t *)pMsg = tmp;
-                                ulDstMap |= (1 << DISP_T_B_FILTERLIFE);
-                                pMsg += 2;
-                            }                 
-                        }
-                        
-
+                            *(uint32_t *)pMsg = tmp;
+                            ulDstMap |= (1 << DISP_T_B_FILTERLIFE);
+                            pMsg += 4;
+                        }                 
                     }
                     break;
                 case DISP_T_A_FILTER:
                     {
+                        tmp = gGlobalParam.CMParam.aulCms[DISP_T_A_FILTERLIFE] ;
+                        if (tmp < 0) tmp = 0;
+                    
                         {
-                            tmp = gGlobalParam.CMParam.aulCms[DISP_T_A_FILTERLIFE] ;
-                            if (tmp < 0) tmp = 0;
-                        
-                            {
-                                *(uint16_t *)pMsg = tmp;
-                                ulDstMap |= (1 << DISP_T_A_FILTERLIFE);
-                                pMsg += 2;
-                            }                 
-                            
-                        }    
+                            *(uint32_t *)pMsg = tmp;
+                            ulDstMap |= (1 << DISP_T_A_FILTERLIFE);
+                            pMsg += 4;
+                        }                    
                     }
                     break;
                 case DISP_TUBE_FILTER:
                     {
+                        tmp = gGlobalParam.CMParam.aulCms[DISP_TUBE_FILTERLIFE] ;
+                        if (tmp < 0) tmp = 0;
+                    
                         {
-                            tmp = gGlobalParam.CMParam.aulCms[DISP_TUBE_FILTERLIFE] ;
-                            if (tmp < 0) tmp = 0;
-                        
-                            {
-                                *(uint16_t *)pMsg = tmp;
-                                ulDstMap |= (1 << DISP_TUBE_FILTERLIFE);
-                                pMsg += 2;
-                            }                 
-                        }  
+                            *(uint32_t *)pMsg = tmp;
+                            ulDstMap |= (1 << DISP_TUBE_FILTERLIFE);
+                            pMsg += 4;
+                        }                  
                     }
                     break;
                 case DISP_TUBE_DI:
                     {
+                        tmp = gGlobalParam.CMParam.aulCms[DISP_TUBE_DI_LIFE];
+                        if (tmp < 0) tmp = 0;
+                    
                         {
-                            tmp = gGlobalParam.CMParam.aulCms[DISP_TUBE_DI_LIFE];
-                            if (tmp < 0) tmp = 0;
-                        
-                            {
-                                *(uint16_t *)pMsg = tmp;
-                                ulDstMap |= (1 << DISP_TUBE_DI_LIFE);
-                                pMsg += 2;
-                            }                 
-                        } 
+                            *(uint32_t *)pMsg = tmp;
+                            ulDstMap |= (1 << DISP_TUBE_DI_LIFE);
+                            pMsg += 4;
+                        }                 
                     }
                     break;
                 }
@@ -14429,6 +14330,13 @@ void CCB::work_idle(void *para)
     /* 3. disable all reports from exe */
     pCcb->CcbSetFms(pWorkItem->id,0,iTmp); // don care modbus exe result
 
+    //切换到待机状态时如果设备正在制水，则记录一次产水历史数据
+    if(pCcb->DispGetPwFlag())
+    {
+        pCcb->CcbProduceWater(pCcb->ulProduceWaterBgnTime);
+
+    }
+  
     /* notify hand set (late implement) */     
     pCcb->work_idle_succ();
     /* notify ui (late implemnt) */

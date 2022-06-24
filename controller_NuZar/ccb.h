@@ -485,6 +485,8 @@ private:
 
    int              m_iInstallHdlIdx;
 
+   unsigned int     ulHPMinCirTimes;
+
    QMap<int,const char *> m_WorkName;
    
    void CcbInit();

@@ -213,6 +213,8 @@ enum MAINPAGE_NOTIFY_STATE_ENUM
     MAINPAGE_NOTIFY_STATE_NOT   = APP_PACKET_HO_ALARM_TYPE_NOT
 };
 
+bool clearDir(const QString &strDir);
+
 class MainWindow : public QMainWindow
 {
     Q_OBJECT
@@ -220,6 +222,8 @@ class MainWindow : public QMainWindow
 public:
     explicit MainWindow(QMainWindow *parent = 0);
     ~MainWindow();
+
+    void POST(); 
     void clearIdleSecond();
 
     void AfDataMsg(IAP_NOTIFY_STRU *pIapNotify);
@@ -344,7 +348,8 @@ public:
     void checkCMParam();
 
     void prepareKeyStroke();
-
+    void consumableInstallBeep();
+    
     int getActiveRfidBrds4Cleaning() ;
 
     void ClearToc();

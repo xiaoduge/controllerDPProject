@@ -468,7 +468,6 @@ void DCheckConsumaleInstall::updateConsumaleMsg()
     switch(m_operateID)
     {
     case InsertAction:
-    {
         insertSql();
         if(newPack())
         {
@@ -476,10 +475,9 @@ void DCheckConsumaleInstall::updateConsumaleMsg()
             clearVolofUse();
         }
         MainResetCmInfo(m_iType);
+        gpMainWnd->consumableInstallBeep();
         break;
-    }
     case UpdateAction:
-    {
         updateSql();
         if(newPack())
         {
@@ -487,16 +485,15 @@ void DCheckConsumaleInstall::updateConsumaleMsg()
             clearVolofUse();
         }
         MainResetCmInfo(m_iType);
+        gpMainWnd->consumableInstallBeep();
         break;
-    }
     case WriteInstallDataAction:
-    {
         writeInstallDate();
         clearVolofUse();
 
         MainResetCmInfo(m_iType);
+        gpMainWnd->consumableInstallBeep();
         break;
-    }
     default:
         break;
     }

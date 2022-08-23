@@ -155,44 +155,6 @@ I5  UP产水电阻率
 
 MainWindow *gpMainWnd;
 
-
-QString gGlobalPixelmapName[GLOBAL_BMP_NUM] = 
-{
-    ":/pic/home.png",
-    ":/pic/run.png",
-    ":/pic/stop.png",
-    ":/pic/btn_power_front.png",
-    ":/pic/btn_power_back.png",
-    ":/pic/bar_seperator.png",
-    ":/pic/navigation_bar.png",
-    ":/pic/time_bar.png",
-    ":/pic/btn_general_active.png",
-    ":/pic/btn_general_normal.png",
-    ":/pic/current_page.png",
-    ":/pic/unselected_page.png",
-    ":/pic/back.png",
-    ":/pic/Channel_Press.png",
-    ":/pic/Channel_Release.png",
-    ":/pic/page_navi_normal.png",
-    ":/pic/page_navi_active.png",
-    ":/pic/Cancle.png",
-    ":/pic/Cancle_p.png",
-    ":/pic/ok.png",
-    ":/pic/ok_p.png",
-    ":/pic/Send_Nor.png",
-    ":/pic/Send_Pres.png",
-    ":/pic/btn_general_30_active.png",
-    ":/pic/btn_general_30_normal.png",
-    ":/pic/cs_normal_state.png",
-    ":/pic/cs_notification_state.png",
-    ":/pic/shopping_cart.png",
-    ":/pic/Remind.png",
-    ":/pic/Warn.png",
-    ":/pic/Monitor_Device_ON.png",
-    ":/pic/Monitor_Device_OFF.png",
-};
-
-
 DISP_GLOBAL_PARAM_STRU gGlobalParam;
 
 DLoginState gUserLoginState;
@@ -1618,6 +1580,7 @@ bool CConfig::doParam(std::string &req,std::string &rsp)
                        gGlobalParam.Caliparam.pc[iId].fc = jValue["fc"].asDouble();
                        gGlobalParam.Caliparam.pc[iId].fk = jValue["fk"].asDouble();
                        gGlobalParam.Caliparam.pc[iId].fv = jValue["fv"].asDouble();
+                       
                        {
                             DISP_PARAM_CALI_ITEM_STRU values;
                             
@@ -5861,9 +5824,34 @@ void MainWindow::preprocessor()
     if((0 == version.compare("unknow"))
      || (0 != version.compare(gApp->applicationVersion())))
     {
-        MainResetCmInfo(DISP_N1_UV);
-        MainResetCmInfo(DISP_N2_UV);
-        MainResetCmInfo(DISP_N3_UV);
+//        MainResetCmInfo(DISP_N1_UV);
+//        MainResetCmInfo(DISP_N2_UV);
+//        MainResetCmInfo(DISP_N3_UV);
+
+        deleteCfgFile(0);
+
+        QStringList pathNames;
+        pathNames << QString("ugs_dir");
+        foreach(QString pathName, pathNames)
+        {
+            QDir dir(pathName);
+            if(dir.exists())
+            {
+                clearDir(pathName);
+            }
+        }
+
+        QStringList otherFiles;
+        otherFiles << QString("ncm") << QString("nm_shzn"); // << QString("SHZN");
+
+        foreach(QString fileName, otherFiles)
+        {
+            QFile infoFile(fileName);
+            if(infoFile.exists())
+            {
+                infoFile.remove();
+            }
+        }
 
         config->setValue(strV, gApp->applicationVersion());
     }
@@ -5872,6 +5860,67 @@ void MainWindow::preprocessor()
     {
         delete config;
         config = NULL;
+    }
+}
+
+bool  MainWindow::CheckForUpdates()
+{
+    QString fromFile = "/media/mmcblk0p1/controller_n";
+    QString toFile = "/opt/shzn/controller";
+    QString bakFile = "/opt/shzn/controller_bak";
+
+    //检测内存卡里是否有"controller_n"
+    if(!QFile::exists(fromFile))
+    {
+        return true;
+    }
+
+    //检查是否有过期的备份文件
+    if(QFile::exists(bakFile))
+    {
+        QFile::remove(bakFile);
+    }
+
+    //将原来的"controller"备份
+    if(QFile::exists(toFile))
+    {
+        if(!QFile::rename(toFile, bakFile))
+        {
+            qDebug() << "Backup \"controller\" file failed"; 
+            return false;
+        }
+    }
+
+    //将内存卡的"controller_n"拷贝到工作目录"controller"
+    if(QFile::copy(fromFile, toFile))
+    {
+        //将新的"controller"文件设置为可执行文件
+        if(QFile::setPermissions(toFile, QFile::ExeOther))
+        {
+            //成功更新后删除备份文件
+            if(!QFile::remove(bakFile)) 
+            {
+                qDebug() << "Failed to delete backup file"; 
+            }
+            
+            qDebug() << "Upgrade program successfully"; 
+            return true;
+        }
+        else
+        {
+            //将新的"controller"文件设置为可执行文件失败，则滚回原来的程序
+            QFile::remove(toFile);
+            QFile::rename(bakFile, toFile);
+            qDebug() << "Failed to modify file permissions";
+            return false;
+        }
+    }
+    else
+    {
+        //将内存卡的"controller_n"拷贝到工作目录"controller"失败，则滚回原来的程序
+        QFile::rename(bakFile, toFile);
+        qDebug() << "Upgrade procedure failed";
+        return false;
     }
 }
 
@@ -5890,6 +5939,8 @@ void  MainWindow::POST()
             clearDir(pathName);
         }
     }
+
+    CheckForUpdates(); //检测内存卡里是否有"controller_n"文件，有则升级程序
 }
 
 
@@ -9453,8 +9504,6 @@ void MainWindow::on_dispIndication(unsigned char *pucData,int iLength)
                 QString strTime = QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss");
                 float fQuantity = gGlobalParam.Caliparam.pc[ DISP_PC_COFF_S1].fk * ((pItem->ulEndTime - pItem->ulBgnTime)*1.0/60.0);
                 unsigned int ulQuantity = fQuantity * 1000;
-                qDebug() << "dcj : fk: " << gGlobalParam.Caliparam.pc[ DISP_PC_COFF_S1].fk;
-                qDebug() << "dcj: " << pItem->ulEndTime << " - " << pItem->ulBgnTime;
             
                 switch(pItem->ucType)
                 {

@@ -738,6 +738,7 @@ void ConsumableInstaller::initPackConfig()
     case MACHINE_UP:
     case MACHINE_PURIST:
     case MACHINE_C_D:
+    case MACHINE_RO_H:
         install_info.iRfid = APP_RFID_SUB_TYPE_HPACK_ATPACK;
         install_info.strName = tr("H Pack");
         m_map[Type0].insert(DISP_H_PACK, install_info);
@@ -7631,7 +7632,7 @@ int CCB::CanCcbAfDataClientRpt4ExeBoard(MAIN_CANITF_MSG_STRU *pCanItfMsg)
                     //ExeBrd.aEcoObjs[pEco->ucId].Value.eV.fWaterQ = pEco->ev.fWaterQ;
                     ExeBrd.aEcoObjs[pEco->ucId].Value.eV.usTemp = pEco->ev.usTemp;
                     ExeBrd.ulEcoValidFlags |= 1 << pEco->ucId;
-
+                    
                     switch(pEco->ucId)
                     {
                     case 0:
@@ -7645,6 +7646,7 @@ int CCB::CanCcbAfDataClientRpt4ExeBoard(MAIN_CANITF_MSG_STRU *pCanItfMsg)
                     case 2:
                         ExeBrd.aEcoObjs[pEco->ucId].Value.eV.fWaterQ *= gGlobalParam.Caliparam.pc[DISP_PC_COFF_EDI_WATER_CONDUCT].fk;
                         ExeBrd.aEcoObjs[pEco->ucId].Value.eV.usTemp *= gGlobalParam.Caliparam.pc[DISP_PC_COFF_EDI_WATER_TEMP].fk;
+
                         if(gGlobalParam.iMachineType != MACHINE_C)
                         {
                             if(ExeBrd.aEcoObjs[pEco->ucId].Value.eV.fWaterQ > 16)

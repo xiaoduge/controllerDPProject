@@ -436,6 +436,7 @@ private:
     void initMachineryCfg();
 	void initRFIDCfg();
     void preprocessor();
+    bool CheckForUpdates();
     
     void updEcoInfo(int iIdx);
 

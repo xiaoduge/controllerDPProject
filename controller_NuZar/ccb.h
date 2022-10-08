@@ -847,6 +847,8 @@ public:
   DISPHANDLE DispCmdCir(unsigned char *pucData, int iLength);
   DISPHANDLE DispCmdEngCmdProc(unsigned char *pucData, int iLength);
   DISPHANDLE DispCmdSwitchReport(unsigned char *pucData, int iLength);
+  DISPHANDLE DispCmdOpenValvesCmdProc(unsigned char *pucData, int iLength);
+  
   DISPHANDLE DispCmdEntry(int iCmdId,unsigned char *pucData, int iLength);
   int DispIapEntry(IAP_CAN_CMD_STRU *pIapCmd);
   int DispAfEntry(IAP_CAN_CMD_STRU *pIapCmd);

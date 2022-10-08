@@ -15638,6 +15638,38 @@ DISPHANDLE CCB::DispCmdSwitchReport(unsigned char *pucData, int iLength)
    return DISP_SPECIAL_HANDLE;
 }
 
+/**
+ * @Author: dcj
+ * @Date: 2021-01-26 12:44:28
+ * @Description: 执行打开所有电磁阀的命令，请确保在待机状态下调用此函数
+ * @param {unsignedchar} *pucData: 命令的附加参数
+ * @param {int} iLength: 附件参数的长度
+ */
+DISPHANDLE CCB::DispCmdOpenValvesCmdProc(unsigned char *pucData, int iLength)
+{
+    int iRet = -1;
+    int iTmp;
+    (void)iLength;
+
+    if (0 == (ulActiveMask & (1 << APP_DEV_TYPE_EXE_BOARD)))
+    {
+        return DISP_INVALID_HANDLE;
+    }  
+
+    if ( !(DISP_WORK_STATE_IDLE == curWorkState.iMainWorkState
+        && DISP_WORK_SUB_IDLE   == curWorkState.iSubWorkState ))
+    {
+        return DISP_INVALID_HANDLE;
+    }
+
+    iTmp = (1 << APP_EXE_E1_NO)|(1<<APP_EXE_E2_NO)|(1<<APP_EXE_E3_NO)|(1<<APP_EXE_E4_NO)
+          |(1 << APP_EXE_E5_NO)|(1<<APP_EXE_E6_NO)|(1<<APP_EXE_E9_NO)|(1<<APP_EXE_E10_NO);
+    iRet = CcbUpdateSwitch(WORK_LIST_NUM,0, iTmp, pucData[0] ? iTmp : 0);
+   
+    return (-1 == iRet) ?  DISP_INVALID_HANDLE : DISP_SPECIAL_HANDLE;
+}
+
+
 DISPHANDLE CCB::DispCmdEntry(int iCmdId,unsigned char *pucData, int iLength)
 {
     LOG(VOS_LOG_WARNING,"DispCmdEntry %s",m_WorkName[iCmdId]);    
@@ -15670,6 +15702,8 @@ DISPHANDLE CCB::DispCmdEntry(int iCmdId,unsigned char *pucData, int iLength)
         return bit1EngineerMode ? NULL : DispCmdCir(pucData,iLength);
     case DISP_CMD_SWITCH_REPORT:
         return bit1EngineerMode ? NULL : DispCmdSwitchReport(pucData,iLength);
+    case DISP_CMD_OPENALLVALVES:
+        return DispCmdOpenValvesCmdProc(pucData,iLength);
     }
     return DISP_INVALID_HANDLE;
 }

@@ -122,6 +122,8 @@ public:
 
     bool doSysTest(std::string &req,std::string &rsp);
 
+    bool doOpenAllValves(std::string &req,std::string &rsp);
+
     bool doWifiConfig(std::string &req,std::string &rsp);
 
     bool doEthnetConfig(std::string &req,std::string &rsp);

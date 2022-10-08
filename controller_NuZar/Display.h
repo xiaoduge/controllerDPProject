@@ -150,6 +150,7 @@ typedef enum
 
    DISP_CMD_HALT,
    
+   DISP_CMD_OPENALLVALVES,
 }DISP_CMD_ENUM;
 
 

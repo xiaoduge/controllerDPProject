@@ -1734,6 +1734,64 @@ bool CConfig::doSysTest(std::string &req,std::string &rsp)
     return false;
 }
 
+
+bool CConfig::doOpenAllValves(std::string &req,std::string &rsp)
+{
+    Json::Value root;
+    Json::Reader reader;
+    
+    if (!reader.parse(req,root))
+    {
+        return false;
+    }
+
+    CCB *pCcb = CCB::getInstance();
+
+    if (root.isMember("state"))
+    {
+    
+        Json::Value &valveState = root["state"];
+
+        int result = 1;
+
+        if (valveState.isMember("open"))
+        {
+            int iOpen = valveState["open"].asInt();
+
+            //如果当前不是待机状态，则不执行打开所有电磁阀的操作，直接返回
+            if (DISP_WORK_STATE_IDLE == pCcb->DispGetWorkState())
+            {
+                unsigned char buf[1];
+                DISPHANDLE hdl = NULL;
+                buf[0] = iOpen;
+                hdl = pCcb->DispCmdEntry(DISP_CMD_OPENALLVALVES, buf, 1);
+                if(!hdl)
+                {
+                    result = 0;
+                }
+            }
+            else
+            {
+               result = 0;
+            }
+
+            {
+                
+                Json::Value jRsp;
+                jRsp["result"] = Json::Value(result);
+                
+                Json::StyledWriter sw;
+                rsp = sw.write(jRsp);
+            }
+
+            return true;
+        }
+    }
+
+    return false;
+
+}
+
 bool CConfig::doWifiConfig(std::string &req,std::string &rsp)
 {
     Json::Value root;
@@ -2482,6 +2540,10 @@ bool webserver_post(string& uri,string &req,string &rsp)
     else if (0 == strPath.compare("/systest"))
     {
        return gCConfig.doSysTest(req,rsp);
+    }
+    else if(0 == strPath.compare("/openallvalves"))
+    {
+        return gCConfig.doOpenAllValves(req,rsp);
     }
     else if (0 == strPath.compare("/reset"))
     {

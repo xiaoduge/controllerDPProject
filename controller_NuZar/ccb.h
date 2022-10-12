@@ -620,7 +620,8 @@ private:
   void work_cir_succ();
   DISPHANDLE CcbInnerWorkStartCirToc(int iStage);
   DISPHANDLE CcbInnerWorkStartCir(int iType);
-  void work_stop_cir_succ();
+  void work_stop_cir_succ(int iQtwFlag);
+  DISPHANDLE CcbInnerWorkStopCir_ext(int iQtwFlag);
   DISPHANDLE CcbInnerWorkStopCir();
   void work_speed_regulation_end(int iIndex,int iResult);
   DISPHANDLE CcbInnerWorkStartSpeedRegulation(int iIndex);

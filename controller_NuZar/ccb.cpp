@@ -4492,9 +4492,9 @@ DISPHANDLE CCB::CcbInnerWorkStartCir(int iType)
     return (DISPHANDLE)pWorkItem;
 }
 
-void CCB::work_stop_cir_succ()
+void CCB::work_stop_cir_succ(int iQtwFlag)
 {
-    int aiCont[1] = {0};
+    int aiCont[2] = {0, iQtwFlag};
     
     MainSndWorkMsg(WORK_MSG_TYPE_ECIR,(unsigned char *)aiCont,sizeof(aiCont));
 
@@ -4505,6 +4505,7 @@ void CCB::work_stop_cir(void *para)
     WORK_ITEM_STRU *pWorkItem = (WORK_ITEM_STRU *)para;
 
     CCB *pCcb = (CCB *)pWorkItem->para;
+    int iQtwFlag = (int)pWorkItem->extra;
 
     int iTmp;
     int iRet;
@@ -4555,13 +4556,13 @@ void CCB::work_stop_cir(void *para)
         /* notify ui (late implemnt) */
     }     
 
-    pCcb->work_stop_cir_succ();
+    pCcb->work_stop_cir_succ(iQtwFlag);
 
     pCcb->ulHPMinCirTimes = 0;
 }
 
 
-DISPHANDLE CCB::CcbInnerWorkStopCir()
+DISPHANDLE CCB::CcbInnerWorkStopCir_ext(int iQtwFlag)
 {
     WORK_ITEM_STRU *pWorkItem = CcbAllocWorkItem();
 
@@ -4574,11 +4575,18 @@ DISPHANDLE CCB::CcbInnerWorkStopCir()
 
     pWorkItem->proc = work_stop_cir;
     pWorkItem->para = this;
+    pWorkItem->extra = (void *)iQtwFlag;
 
     CcbAddWork(WORK_LIST_HP,pWorkItem);
 
     return (DISPHANDLE)pWorkItem;
 }
+
+DISPHANDLE CCB::CcbInnerWorkStopCir(void)
+{
+    return CcbInnerWorkStopCir_ext(0);
+}
+
 
 void CCB::work_speed_regulation_end(int iIndex,int iResult)
 {
@@ -9302,6 +9310,14 @@ int CCB::CanCcbAfDataHOQtwReqMsg(MAIN_CANITF_MSG_STRU *pCanItfMsg)
                {
                    CanCcbSaveQtwMsg(APP_TRX_CAN,pCanItfMsg);
 
+                   if (DISP_WORK_STATE_RUN == curWorkState.iMainWorkState4Pw
+                        && DISP_WORK_SUB_RUN_CIR == curWorkState.iSubWorkState4Pw)
+                    {
+                        if (!SearchWork(work_stop_cir))
+                        {
+                        	CcbInnerWorkStopCir_ext(1);
+                        } 
+                    }
                    /* remove cir work if any */
                    CcbRmvWork(work_start_cir);
                     
@@ -12740,7 +12756,7 @@ void CCB::CcbWorMsgProc(SAT_MSG_HEAD *pucMsg)
         break;
     case WORK_MSG_TYPE_ECIR:
         {
-            int aResult[1];
+            int aResult[2];
     
             memcpy(aResult,pWorkMsg->aucData,sizeof(aResult));
     
@@ -12774,7 +12790,15 @@ void CCB::CcbWorMsgProc(SAT_MSG_HEAD *pucMsg)
 
             LOG(VOS_LOG_WARNING,"CanCcbTransState4Pw");    
             
-            CanCcbTransState4Pw(DISP_WORK_STATE_RUN,DISP_WORK_SUB_IDLE);
+            if (!aResult[1])
+            {
+                CanCcbTransState4Pw(DISP_WORK_STATE_RUN,DISP_WORK_SUB_IDLE);
+            }
+            else
+            {
+                curWorkState.iMainWorkState4Pw = DISP_WORK_STATE_RUN;
+                curWorkState.iSubWorkState4Pw  = DISP_WORK_SUB_IDLE;
+            }
 
         }        
         break;

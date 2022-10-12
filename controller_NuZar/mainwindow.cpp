@@ -2795,10 +2795,10 @@ void MainRetriveExConsumableMsg(int iMachineType, DISP_CONSUME_MATERIAL_SN_STRU 
         }
         else
         {
-            memset(mParam.aCn[query.value(1).toInt()], 0, sizeof(CATNO));
-            strncpy(mParam.aCn[query.value(1).toInt()], query.value(2).toString().toAscii(), APP_CAT_LENGTH);
-            memset(mParam.aLn[query.value(1).toInt()], 0, sizeof(LOTNO));
-            strncpy(mParam.aLn[query.value(1).toInt()], query.value(3).toString().toAscii(), APP_LOT_LENGTH);
+            memset(mParam.aCn[query.value(1).toInt() - DISP_MACHINERY_SOURCE_BOOSTER_PUMP], 0, sizeof(CATNO));
+            strncpy(mParam.aCn[query.value(1).toInt() - DISP_MACHINERY_SOURCE_BOOSTER_PUMP], query.value(2).toString().toAscii(), APP_CAT_LENGTH);
+            memset(mParam.aLn[query.value(1).toInt() - DISP_MACHINERY_SOURCE_BOOSTER_PUMP], 0, sizeof(LOTNO));
+            strncpy(mParam.aLn[query.value(1).toInt() - DISP_MACHINERY_SOURCE_BOOSTER_PUMP], query.value(3).toString().toAscii(), APP_LOT_LENGTH);
         }
     }
 }

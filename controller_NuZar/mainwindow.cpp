@@ -375,13 +375,15 @@ extern bool _copyConfigFileHelper(const QString fileName);
 bool clearDir(const QString &strDir)
 {
     QDir dir(strDir);
-    QFileInfoList list = dir.entryInfoList(QDir::NoDotAndDotDot | QDir::Files | QDir::Dirs);
-    if(list.empty())
+
+    if(!dir.exists())
     {
-        qDebug() << "Delete Dir: " << strDir;
-        return dir.rmdir(strDir);
+        qDebug() << "directory does not exist";
+        return true;
     }
-    
+
+    QFileInfoList list = dir.entryInfoList(QDir::NoDotAndDotDot | QDir::Files | QDir::Dirs);
+
     foreach(QFileInfo info, list)
     {
         if(info.isDir())
@@ -392,12 +394,14 @@ bool clearDir(const QString &strDir)
         else
         {
             QString tmpFile = strDir + "/" + info.fileName();
-            if(!QFile::remove(tmpFile)) return false;   
+            if(!QFile::remove(tmpFile)) return false;
             qDebug() << "Delete File: " << tmpFile;
         }
     }
-}
 
+    qDebug() << "Delete Dir: " << strDir;
+    return dir.rmdir(strDir);
+}
 
 CConfig::CConfig() : m_bReset(false), m_bSysReboot(false)
 {
